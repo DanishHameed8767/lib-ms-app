@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
     Box,
     Paper,
@@ -17,7 +17,6 @@ import LockResetOutlinedIcon from "@mui/icons-material/LockResetOutlined";
 import { createClient } from "@/lib/supabase/client";
 
 function parseHashParams() {
-    // Supports implicit flow: #access_token=...&refresh_token=...&type=recovery
     if (typeof window === "undefined") return {};
     const hash = window.location.hash?.startsWith("#")
         ? window.location.hash.slice(1)
@@ -29,7 +28,6 @@ function parseHashParams() {
 export default function ResetPasswordPage() {
     const supabase = React.useMemo(() => createClient(), []);
     const router = useRouter();
-    const searchParams = useSearchParams();
 
     const [booting, setBooting] = React.useState(true);
     const [ready, setReady] = React.useState(false);
@@ -40,7 +38,7 @@ export default function ResetPasswordPage() {
     const [saving, setSaving] = React.useState(false);
     const [success, setSuccess] = React.useState("");
 
-    // 1) Establish a session from the recovery link
+    // 1) Ensure user/session exists (callback route should have created it)
     React.useEffect(() => {
         let alive = true;
 
@@ -50,19 +48,7 @@ export default function ResetPasswordPage() {
             setSuccess("");
 
             try {
-                // PKCE flow: /auth/reset-password?code=xxxxx&type=recovery
-                const code = searchParams?.get("code");
-                if (code) {
-                    const { error: exErr } =
-                        await supabase.auth.exchangeCodeForSession(code);
-                    if (exErr) throw exErr;
-
-                    if (!alive) return;
-                    setReady(true);
-                    return;
-                }
-
-                // Implicit flow: tokens in URL hash
+                // Fallback support: implicit hash tokens (older flow)
                 const hp = parseHashParams();
                 const access_token = hp.access_token;
                 const refresh_token = hp.refresh_token;
@@ -74,7 +60,7 @@ export default function ResetPasswordPage() {
                     });
                     if (sErr) throw sErr;
 
-                    // Clean up hash so tokens aren't left in the URL
+                    // Clean hash from URL
                     try {
                         window.history.replaceState(
                             {},
@@ -82,22 +68,35 @@ export default function ResetPasswordPage() {
                             window.location.pathname + window.location.search
                         );
                     } catch {}
-
-                    if (!alive) return;
-                    setReady(true);
-                    return;
                 }
 
-                // If we got here, there is no usable recovery context.
-                // Show an error and guide user to request again.
-                setError(
-                    "Reset link is missing or expired. Please request a new password reset email."
-                );
-                setReady(false);
+                // Now confirm we have an authenticated user
+                const { data, error: gErr } = await supabase.auth.getUser();
+                if (gErr) throw gErr;
+
+                if (!alive) return;
+
+                if (!data?.user) {
+                    setReady(false);
+                    setError(
+                        "Reset link is missing/expired, or it was opened in a different browser/device. Please request a new reset email from the sign-in page."
+                    );
+                } else {
+                    setReady(true);
+                }
             } catch (e) {
-                console.warn("Reset bootstrap failed:", e?.message || e);
-                setError(e?.message || "Could not open reset link.");
+                if (!alive) return;
+                const msg = e?.message || "Could not open reset link.";
                 setReady(false);
+
+                // Special-case the PKCE verifier error with a clearer message
+                if (String(msg).toLowerCase().includes("pkce code verifier")) {
+                    setError(
+                        "This reset link was opened in a different browser/device, or the reset was requested on a different domain (localhost vs vercel). Please request a new reset email and open it in the same browser where you requested it."
+                    );
+                } else {
+                    setError(msg);
+                }
             } finally {
                 if (alive) setBooting(false);
             }
@@ -106,9 +105,8 @@ export default function ResetPasswordPage() {
         return () => {
             alive = false;
         };
-    }, [supabase, searchParams]);
+    }, [supabase]);
 
-    // 2) Update password
     async function handleSubmit(e) {
         e.preventDefault();
         setError("");
@@ -137,11 +135,10 @@ export default function ResetPasswordPage() {
                 "Password updated successfully. Redirecting to sign in…"
             );
 
-            // Optional: sign out to force fresh login
             await supabase.auth.signOut();
 
             setTimeout(() => {
-                router.replace("/login"); // change if you want /reader/dashboard
+                router.replace("/login");
                 router.refresh();
             }, 900);
         } catch (e2) {

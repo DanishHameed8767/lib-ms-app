@@ -142,13 +142,14 @@ export default function LoginPage() {
             // You need a page/route that completes the reset flow.
             // Common pattern is: /auth/callback and /auth/reset-password
             // This only sends the email.
-            const redirectTo = `${window.location.origin}/auth/reset-password`;
+            const redirectTo = new URL(
+                "/auth/callback?next=/auth/reset-password",
+                window.location.origin
+            ).toString();
 
             const { error } = await supabase.auth.resetPasswordForEmail(
                 fpEmail,
-                {
-                    redirectTo,
-                }
+                { redirectTo }
             );
             if (error) throw error;
 
@@ -433,17 +434,6 @@ export default function LoginPage() {
                         value={fpEmail}
                         onChange={(e) => setFpEmail(e.target.value)}
                     />
-                    <Typography
-                        variant="caption"
-                        sx={{
-                            display: "block",
-                            mt: 1,
-                            color: "text.secondary",
-                        }}
-                    >
-                        Note: your app needs a page at{" "}
-                        <b>/auth/reset-password</b> to finish the reset.
-                    </Typography>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button onClick={() => setFpOpen(false)} disabled={loading}>
