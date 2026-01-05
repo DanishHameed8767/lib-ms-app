@@ -31,9 +31,9 @@ import { createClient } from "@/lib/supabase/client";
 
 /** ✅ Use explicit px radii to avoid “weirdly round” look */
 const R = {
-    card: "14px",
-    soft: "12px",
-    btn: "12px",
+    card: "24px",
+    soft: "20px",
+    btn: "999px",
     chip: "999px",
 };
 
@@ -371,7 +371,7 @@ export default function AdminBooksPage() {
     };
 
     return (
-        <RoleGuard allowedRoles={[ROLES.ADMIN]}>
+        <RoleGuard allowedRoles={[ROLES.ADMIN, ROLES.LIBRARIAN]}>
             <AppShell title="Admin Books">
                 {/* ✅ stop horizontal overflow + keep consistent “not too round” UI */}
                 <Box sx={{ minWidth: 0, overflowX: "hidden" }}>

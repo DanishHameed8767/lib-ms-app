@@ -3,8 +3,6 @@ import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import SwapHorizOutlinedIcon from "@mui/icons-material/SwapHorizOutlined";
 import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
-import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
-import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import StorefrontOutlinedIcon from "@mui/icons-material/StorefrontOutlined";
@@ -108,7 +106,7 @@ export const navItems = [
         label: "Admin Books",
         icon: <MenuBookOutlinedIcon />,
         href: "/admin/books",
-        roles: [ROLES.ADMIN, ROLES.LIBRARIAN],
+        roles: [ROLES.LIBRARIAN, ROLES.ADMIN, ROLES.STAFF],
     },
     {
         label: "Branches",

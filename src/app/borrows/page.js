@@ -33,9 +33,9 @@ import {
 
 /** ✅ consistent radius (no MUI multiplier surprises) */
 const R = {
-    card: "14px",
-    soft: "12px",
-    btn: "12px",
+    card: "24px",
+    soft: "20px",
+    btn: "999px",
     chip: "999px",
 };
 

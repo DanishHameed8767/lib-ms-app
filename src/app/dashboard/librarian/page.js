@@ -22,6 +22,9 @@ import RoleGuard from "@/components/RoleGuard";
 import { ROLES } from "@/lib/roles";
 import { useAuth } from "@/context/AuthContext";
 
+const pillBtnSx = { borderRadius: "999px" }; // ✅ only buttons
+const pillChipSx = { borderRadius: 999, fontWeight: 900 }; // ✅ chips like your ref
+
 function StatCard({ title, value, subtitle, chips = [], actions = [] }) {
     const tones = {
         ok: { bg: "rgba(46,204,113,0.15)", fg: "#2ecc71" },
@@ -31,7 +34,10 @@ function StatCard({ title, value, subtitle, chips = [], actions = [] }) {
     };
 
     return (
-        <Paper variant="outlined" sx={{ borderRadius: 4, overflow: "hidden" }}>
+        <Paper
+            variant="outlined"
+            sx={{ borderRadius: "24px", overflow: "hidden" }}
+        >
             <Box
                 sx={{
                     p: 2,
@@ -74,8 +80,7 @@ function StatCard({ title, value, subtitle, chips = [], actions = [] }) {
                             key={c.label}
                             label={c.label}
                             sx={{
-                                borderRadius: 3,
-                                fontWeight: 900,
+                                ...pillChipSx,
                                 backgroundColor: t.bg,
                                 color: t.fg,
                             }}
@@ -89,7 +94,7 @@ function StatCard({ title, value, subtitle, chips = [], actions = [] }) {
                         component={Link}
                         href={a.href}
                         variant={a.variant || "outlined"}
-                        sx={{ borderRadius: 3 }}
+                        sx={pillBtnSx}
                     >
                         {a.label}
                     </Button>
@@ -132,7 +137,6 @@ export default function LibrarianDashboardPage() {
         try {
             const today = formatDateISO(new Date());
 
-            // ACTIVE + OVERDUE
             const [
                 { count: activeBorrows, error: e1 },
                 { count: overdueBorrows, error: e2 },
@@ -149,7 +153,6 @@ export default function LibrarianDashboardPage() {
             if (e1) throw e1;
             if (e2) throw e2;
 
-            // TODAY BORROWS/RETURNS (date columns are DATE, so use eq on YYYY-MM-DD)
             const [
                 { count: borrowsToday, error: e3 },
                 { count: returnsToday, error: e4 },
@@ -166,21 +169,18 @@ export default function LibrarianDashboardPage() {
             if (e3) throw e3;
             if (e4) throw e4;
 
-            // PAYMENTS PENDING (receipt inbox)
             const { count: paymentsPending, error: e5 } = await supabase
                 .from("payment_receipts")
                 .select("id", { count: "exact", head: true })
                 .eq("status", "Pending");
             if (e5) throw e5;
 
-            // ORDERS PENDING
             const { count: ordersPending, error: e6 } = await supabase
                 .from("orders")
                 .select("id", { count: "exact", head: true })
                 .eq("status", "Pending");
             if (e6) throw e6;
 
-            // LOW STOCK (<=2 available)
             const { data: lowStock, error: e7 } = await supabase
                 .from("books")
                 .select("id, title, stock_available, stock_total")
@@ -189,7 +189,6 @@ export default function LibrarianDashboardPage() {
                 .limit(6);
             if (e7) throw e7;
 
-            // RECENT BORROWS (last 6)
             const { data: recentBorrows, error: e8 } = await supabase
                 .from("borrows")
                 .select(
@@ -237,9 +236,9 @@ export default function LibrarianDashboardPage() {
                         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                             <Button
                                 component={Link}
-                                href="/desk"
+                                href="/borrows"
                                 variant="contained"
-                                sx={{ borderRadius: 3 }}
+                                sx={pillBtnSx}
                             >
                                 Desk
                             </Button>
@@ -247,7 +246,7 @@ export default function LibrarianDashboardPage() {
                                 component={Link}
                                 href="/payments"
                                 variant="outlined"
-                                sx={{ borderRadius: 3 }}
+                                sx={pillBtnSx}
                             >
                                 Payments
                             </Button>
@@ -255,7 +254,7 @@ export default function LibrarianDashboardPage() {
                                 component={Link}
                                 href="/orders"
                                 variant="outlined"
-                                sx={{ borderRadius: 3 }}
+                                sx={pillBtnSx}
                             >
                                 Orders
                             </Button>
@@ -264,7 +263,10 @@ export default function LibrarianDashboardPage() {
                 />
 
                 {loading ? (
-                    <Paper variant="outlined" sx={{ borderRadius: 4, p: 4 }}>
+                    <Paper
+                        variant="outlined"
+                        sx={{ borderRadius: "24px", p: 4 }}
+                    >
                         <Box
                             sx={{
                                 display: "flex",
@@ -279,12 +281,11 @@ export default function LibrarianDashboardPage() {
                         </Box>
                     </Paper>
                 ) : error ? (
-                    <Alert severity="error" sx={{ borderRadius: 3 }}>
+                    <Alert severity="error" sx={{ borderRadius: "20px" }}>
                         {error}
                     </Alert>
                 ) : (
                     <>
-                        {/* Top stats */}
                         <Box
                             sx={{
                                 display: "grid",
@@ -356,7 +357,6 @@ export default function LibrarianDashboardPage() {
                             />
                         </Box>
 
-                        {/* Main grid: Recent borrows + Low stock */}
                         <Box
                             sx={{
                                 mt: 2,
@@ -371,7 +371,10 @@ export default function LibrarianDashboardPage() {
                         >
                             <Paper
                                 variant="outlined"
-                                sx={{ borderRadius: 4, overflow: "hidden" }}
+                                sx={{
+                                    borderRadius: "24px",
+                                    overflow: "hidden",
+                                }}
                             >
                                 <Box sx={{ p: 2 }}>
                                     <Typography sx={{ fontWeight: 900 }}>
@@ -394,12 +397,6 @@ export default function LibrarianDashboardPage() {
                                         {stats.recentBorrows.map((b) => {
                                             const title =
                                                 b?.books?.title || "—";
-                                            const tone =
-                                                b.status === "Overdue"
-                                                    ? "danger"
-                                                    : b.status === "Borrowed"
-                                                    ? "ok"
-                                                    : "neutral";
                                             const chip =
                                                 b.status === "Overdue"
                                                     ? {
@@ -425,9 +422,7 @@ export default function LibrarianDashboardPage() {
                                                             component={Link}
                                                             href="/desk"
                                                             variant="outlined"
-                                                            sx={{
-                                                                borderRadius: 3,
-                                                            }}
+                                                            sx={pillBtnSx}
                                                         >
                                                             Open
                                                         </Button>
@@ -460,8 +455,7 @@ export default function LibrarianDashboardPage() {
                                                                         b.status
                                                                     }
                                                                     sx={{
-                                                                        borderRadius: 2,
-                                                                        fontWeight: 900,
+                                                                        ...pillChipSx,
                                                                         backgroundColor:
                                                                             chip.bg,
                                                                         color: chip.fg,
@@ -527,7 +521,7 @@ export default function LibrarianDashboardPage() {
                                         component={Link}
                                         href="/desk"
                                         variant="contained"
-                                        sx={{ borderRadius: 3 }}
+                                        sx={pillBtnSx}
                                     >
                                         Go to Desk
                                     </Button>
@@ -536,7 +530,10 @@ export default function LibrarianDashboardPage() {
 
                             <Paper
                                 variant="outlined"
-                                sx={{ borderRadius: 4, overflow: "hidden" }}
+                                sx={{
+                                    borderRadius: "24px",
+                                    overflow: "hidden",
+                                }}
                             >
                                 <Box sx={{ p: 2 }}>
                                     <Typography sx={{ fontWeight: 900 }}>
@@ -570,9 +567,7 @@ export default function LibrarianDashboardPage() {
                                                             component={Link}
                                                             href={`/books/${b.id}`}
                                                             variant="outlined"
-                                                            sx={{
-                                                                borderRadius: 3,
-                                                            }}
+                                                            sx={pillBtnSx}
                                                         >
                                                             View
                                                         </Button>
@@ -611,8 +606,7 @@ export default function LibrarianDashboardPage() {
                                                                 : "Low"
                                                         }
                                                         sx={{
-                                                            borderRadius: 2,
-                                                            fontWeight: 900,
+                                                            ...pillChipSx,
                                                             backgroundColor:
                                                                 isOut
                                                                     ? "rgba(231,76,60,0.15)"
@@ -664,7 +658,7 @@ export default function LibrarianDashboardPage() {
                                         component={Link}
                                         href="/orders"
                                         variant="outlined"
-                                        sx={{ borderRadius: 3 }}
+                                        sx={pillBtnSx}
                                     >
                                         Orders
                                     </Button>

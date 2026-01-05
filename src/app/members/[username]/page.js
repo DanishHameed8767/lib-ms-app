@@ -70,7 +70,7 @@ function StatusChip({ status }) {
             size="small"
             label={status}
             sx={{
-                borderRadius: 2,
+                borderRadius: "999px",
                 fontWeight: 900,
                 backgroundColor: s.bg,
                 color: s.fg,
@@ -233,15 +233,15 @@ export default function MemberDetailsPage() {
                         <>
                             <Button
                                 component={Link}
-                                href="/desk"
+                                href="/borrows"
                                 variant="outlined"
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: "20px" }}
                             >
-                                Open Desk
+                                Open Issues
                             </Button>
                             <Button
                                 variant="contained"
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: "20px" }}
                                 onClick={() =>
                                     alert("Edit member: coming next")
                                 }
@@ -262,7 +262,7 @@ export default function MemberDetailsPage() {
                 {loading ? (
                     <Paper
                         variant="outlined"
-                        sx={{ mt: 2, p: 3, borderRadius: 4 }}
+                        sx={{ mt: 2, p: 3, borderRadius: "24px" }}
                     >
                         <Box
                             sx={{
@@ -290,7 +290,7 @@ export default function MemberDetailsPage() {
                         {/* Main column */}
                         <Box sx={{ display: "grid", gap: 2 }}>
                             {/* Profile header */}
-                            <Card sx={{ borderRadius: 4 }}>
+                            <Card sx={{ borderRadius: "24px" }}>
                                 <CardContent
                                     sx={{
                                         display: "flex",
@@ -405,7 +405,7 @@ export default function MemberDetailsPage() {
 
                                     <Button
                                         variant="outlined"
-                                        sx={{ borderRadius: 3 }}
+                                        sx={{ borderRadius: "20px" }}
                                         onClick={() =>
                                             alert(
                                                 "Disable/Enable: implement later (admin-only update)"
@@ -455,7 +455,10 @@ export default function MemberDetailsPage() {
                             {/* Borrows table */}
                             <Paper
                                 variant="outlined"
-                                sx={{ borderRadius: 4, overflow: "hidden" }}
+                                sx={{
+                                    borderRadius: "24px",
+                                    overflow: "hidden",
+                                }}
                             >
                                 <Box sx={{ p: 1.25 }}>
                                     <Tabs
@@ -465,7 +468,7 @@ export default function MemberDetailsPage() {
                                             minHeight: 40,
                                             "& .MuiTab-root": {
                                                 minHeight: 40,
-                                                borderRadius: 3,
+                                                borderRadius: "20px",
                                                 textTransform: "none",
                                                 fontWeight: 900,
                                             },
@@ -564,7 +567,8 @@ export default function MemberDetailsPage() {
                                                                         size="small"
                                                                         variant="contained"
                                                                         sx={{
-                                                                            borderRadius: 3,
+                                                                            borderRadius:
+                                                                                "20px",
                                                                         }}
                                                                         component={
                                                                             Link
@@ -579,7 +583,8 @@ export default function MemberDetailsPage() {
                                                                         size="small"
                                                                         variant="outlined"
                                                                         sx={{
-                                                                            borderRadius: 3,
+                                                                            borderRadius:
+                                                                                "20px",
                                                                         }}
                                                                         component={
                                                                             Link
@@ -596,7 +601,8 @@ export default function MemberDetailsPage() {
                                                                     size="small"
                                                                     variant="outlined"
                                                                     sx={{
-                                                                        borderRadius: 3,
+                                                                        borderRadius:
+                                                                            "20px",
                                                                     }}
                                                                 >
                                                                     View
@@ -651,7 +657,7 @@ export default function MemberDetailsPage() {
 
                         {/* Right rail */}
                         <Box sx={{ display: "grid", gap: 2 }}>
-                            <Card sx={{ borderRadius: 4 }}>
+                            <Card sx={{ borderRadius: "24px" }}>
                                 <CardContent>
                                     <Typography sx={{ fontWeight: 900 }}>
                                         Payment History
@@ -683,7 +689,7 @@ export default function MemberDetailsPage() {
                                                     variant="outlined"
                                                     sx={{
                                                         p: 1.25,
-                                                        borderRadius: 3,
+                                                        borderRadius: "20px",
                                                     }}
                                                 >
                                                     <Box
@@ -773,7 +779,7 @@ export default function MemberDetailsPage() {
                                             component={Link}
                                             href="/payments"
                                             variant="outlined"
-                                            sx={{ borderRadius: 3 }}
+                                            sx={{ borderRadius: "20px" }}
                                         >
                                             Open Inbox
                                         </Button>
@@ -781,7 +787,7 @@ export default function MemberDetailsPage() {
                                 </CardContent>
                             </Card>
 
-                            <Card sx={{ borderRadius: 4 }}>
+                            <Card sx={{ borderRadius: "24px" }}>
                                 <CardContent>
                                     <Typography sx={{ fontWeight: 900 }}>
                                         Reservations
@@ -807,7 +813,7 @@ export default function MemberDetailsPage() {
 
 function StatCard({ title, value, sub }) {
     return (
-        <Card sx={{ borderRadius: 4 }}>
+        <Card sx={{ borderRadius: "24px" }}>
             <CardContent>
                 <Typography variant="body2" sx={{ color: "text.secondary" }}>
                     {title}

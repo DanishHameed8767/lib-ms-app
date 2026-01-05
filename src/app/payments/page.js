@@ -39,7 +39,7 @@ const R = {
     paper: "10px",
     field: "10px",
     tab: "10px",
-    btn: "10px",
+    btn: "999px",
     chip: "10px",
     pill: "999px",
 };

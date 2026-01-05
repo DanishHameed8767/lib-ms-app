@@ -49,7 +49,7 @@ function RoleChip({ role }) {
             size="small"
             label={role || "Reader"}
             sx={{
-                borderRadius: 2,
+                borderRadius: "999px",
                 fontWeight: 900,
                 backgroundColor: s.bg,
                 color: s.fg,
@@ -65,7 +65,7 @@ function FineChip({ count }) {
             size="small"
             label={danger ? `${count} unpaid fine(s)` : "No unpaid fines"}
             sx={{
-                borderRadius: 2,
+                borderRadius: "999px",
                 fontWeight: 900,
                 backgroundColor: danger
                     ? "rgba(231,76,60,0.15)"
@@ -290,7 +290,7 @@ export default function MembersPage() {
                         <Button
                             variant="contained"
                             startIcon={<PersonAddAltOutlinedIcon />}
-                            sx={{ borderRadius: 3 }}
+                            sx={{ borderRadius: "20px" }}
                             onClick={() => alert("Add Member: coming next")}
                         >
                             Add Member
@@ -309,7 +309,7 @@ export default function MembersPage() {
                     sx={{
                         mt: 2,
                         p: 1.25,
-                        borderRadius: 4,
+                        borderRadius: "24px",
                         display: "flex",
                         gap: 1,
                         flexWrap: "wrap",
@@ -349,7 +349,7 @@ export default function MembersPage() {
 
                     <Button
                         variant="outlined"
-                        sx={{ borderRadius: 3 }}
+                        sx={{ borderRadius: "20px" }}
                         onClick={() => alert("Export: later")}
                     >
                         Export
@@ -358,7 +358,7 @@ export default function MembersPage() {
 
                 <Paper
                     variant="outlined"
-                    sx={{ mt: 2, borderRadius: 4, overflow: "hidden" }}
+                    sx={{ mt: 2, borderRadius: "24px", overflow: "hidden" }}
                 >
                     <Box
                         sx={{
@@ -439,7 +439,7 @@ export default function MembersPage() {
                                                 size="small"
                                                 label={`${r.planName} • exp ${r.planExpires}`}
                                                 sx={{
-                                                    borderRadius: 2,
+                                                    borderRadius: "999px",
                                                     fontWeight: 900,
                                                 }}
                                             />
@@ -463,7 +463,7 @@ export default function MembersPage() {
                                                 href={`/members/${r.username}`}
                                                 size="small"
                                                 variant="contained"
-                                                sx={{ borderRadius: 3 }}
+                                                sx={{ borderRadius: "20px" }}
                                             >
                                                 View
                                             </Button>
