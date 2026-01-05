@@ -26,8 +26,15 @@ export const navItems = [
         label: "Dashboard",
         icon: <DashboardOutlinedIcon />,
         href: "/dashboard",
-        roles: [ROLES.ADMIN, ROLES.LIBRARIAN, ROLES.STAFF],
+        roles: [ROLES.ADMIN],
     },
+    {
+        label: "Librarian Dashboard",
+        icon: <DashboardOutlinedIcon />,
+        href: "/dashboard/librarian",
+        roles: [ROLES.LIBRARIAN],
+    },
+
     { label: "Books", icon: <MenuBookOutlinedIcon />, href: "/books" }, // everyone
 
     // Reader area
@@ -75,12 +82,12 @@ export const navItems = [
         href: "/members",
         roles: [ROLES.ADMIN, ROLES.LIBRARIAN, ROLES.STAFF],
     },
-    {
-        label: "Orders",
-        icon: <LocalShippingOutlinedIcon />,
-        href: "/orders",
-        roles: [ROLES.ADMIN, ROLES.LIBRARIAN, ROLES.STAFF],
-    },
+    // {
+    //     label: "Orders",
+    //     icon: <LocalShippingOutlinedIcon />,
+    //     href: "/orders",
+    //     roles: [ROLES.ADMIN, ROLES.LIBRARIAN, ROLES.STAFF],
+    // },
 
     // Public readable info
     {
@@ -127,12 +134,12 @@ export const navItems = [
         href: "/admin/announcements",
         roles: [ROLES.ADMIN],
     },
-    {
-        label: "Inventory",
-        icon: <Inventory2OutlinedIcon />,
-        href: "/inventory",
-        roles: [ROLES.ADMIN, ROLES.STAFF], // adjust if you want librarian too
-    },
+    // {
+    //     label: "Inventory",
+    //     icon: <Inventory2OutlinedIcon />,
+    //     href: "/inventory",
+    //     roles: [ROLES.ADMIN, ROLES.STAFF], // adjust if you want librarian too
+    // },
     {
         label: "Payments",
         icon: <FactCheckOutlinedIcon />,

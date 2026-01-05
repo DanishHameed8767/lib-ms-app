@@ -27,11 +27,20 @@ import {
     MenuItem,
     Alert,
 } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import AppShell from "../../../components/AppShell";
 import PageHeader from "../../../components/PageHeader";
 import RoleGuard from "../../../components/RoleGuard";
 import { ROLES } from "../../../lib/roles";
 import { useAuth } from "@/context/AuthContext";
+
+const R = {
+    xs: "10px",
+    sm: "12px",
+    md: "16px",
+    lg: "20px",
+    xl: "24px",
+};
 
 function withTimeout(promise, ms, label = "Request") {
     let t;
@@ -39,6 +48,16 @@ function withTimeout(promise, ms, label = "Request") {
         t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
     });
     return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+}
+
+// PKR currency formatter (request: replace $ -> PKR)
+function moneyPKR(n) {
+    const v = Number(n || 0);
+    return v.toLocaleString(undefined, {
+        style: "currency",
+        currency: "PKR",
+        maximumFractionDigits: 0,
+    });
 }
 
 function adaptBook(b) {
@@ -53,6 +72,7 @@ function adaptBook(b) {
         year: b.publication_year || "—",
         stockTotal: b.stock_total ?? 0,
         stockAvailable: b.stock_available ?? 0,
+        coverImageUrl: b.cover_image_url || "",
 
         // placeholders (not in DB)
         language: b.language || "—",
@@ -62,11 +82,45 @@ function adaptBook(b) {
     };
 }
 
+function AvailabilityPill({ available }) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
+    const isOut = (available ?? 0) <= 0;
+
+    const bg = isOut
+        ? alpha(theme.palette.error.main, isDark ? 0.18 : 0.12)
+        : alpha(theme.palette.success.main, isDark ? 0.18 : 0.12);
+
+    const bd = isOut
+        ? alpha(theme.palette.error.main, 0.3)
+        : alpha(theme.palette.success.main, 0.28);
+
+    const fg = isOut ? theme.palette.error.main : theme.palette.success.main;
+
+    return (
+        <Chip
+            size="small"
+            label={isOut ? "Out of stock" : "Available"}
+            sx={{
+                height: 28,
+                borderRadius: "999px",
+                fontWeight: 850,
+                bgcolor: bg,
+                color: fg,
+                border: `1px solid ${bd}`,
+                "& .MuiChip-label": { px: 1.1 },
+            }}
+        />
+    );
+}
+
 export default function BookDetailsPage() {
     const params = useParams();
     const bookId = String(params?.id || "");
 
     const { supabase, role } = useAuth();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
 
     const [book, setBook] = React.useState(null);
     const [related, setRelated] = React.useState([]);
@@ -77,13 +131,35 @@ export default function BookDetailsPage() {
 
     const canManageBooks = role === "Administrator" || role === "Librarian";
 
-    // Borrow dialog state (Librarian/Admin only)
+    // Borrow dialog state
     const [borrowOpen, setBorrowOpen] = React.useState(false);
     const [borrowSaving, setBorrowSaving] = React.useState(false);
     const [borrowError, setBorrowError] = React.useState("");
     const [borrowOk, setBorrowOk] = React.useState("");
     const [readerUsername, setReaderUsername] = React.useState("");
     const [branchId, setBranchId] = React.useState("");
+
+    const borderSoft = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.1 : 0.1
+    );
+    const hoverBg = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.04 : 0.035
+    );
+
+    const surfaceCard = {
+        borderRadius: R.xl,
+        border: `1px solid ${borderSoft}`,
+        background: isDark
+            ? `linear-gradient(180deg, ${alpha("#FFFFFF", 0.05)} 0%, ${alpha(
+                  "#FFFFFF",
+                  0.02
+              )} 100%)`
+            : "#FFFFFF",
+        boxShadow: "none",
+        overflow: "hidden",
+    };
 
     const load = React.useCallback(
         async ({ silent = false } = {}) => {
@@ -98,7 +174,6 @@ export default function BookDetailsPage() {
             setError("");
 
             try {
-                // Load branches (for borrow dialog; harmless for readers too)
                 const branchesP = supabase
                     .from("library_branches")
                     .select("id,name,address")
@@ -151,7 +226,6 @@ export default function BookDetailsPage() {
                 const adapted = adaptBook(data);
                 setBook(adapted);
 
-                // Related: same genre
                 if (adapted.genre) {
                     const relP = supabase
                         .from("books")
@@ -210,7 +284,6 @@ export default function BookDetailsPage() {
         };
     }, [load]);
 
-    // Borrow handler (Librarian/Admin)
     const submitBorrow = async () => {
         if (!supabase || !book?.id) return;
         setBorrowError("");
@@ -228,7 +301,6 @@ export default function BookDetailsPage() {
 
         setBorrowSaving(true);
         try {
-            // Lookup reader by username
             const { data: prof, error: pErr } = await withTimeout(
                 supabase
                     .from("profiles")
@@ -238,15 +310,14 @@ export default function BookDetailsPage() {
                 7000,
                 "Lookup reader"
             );
+
             if (pErr) throw pErr;
             if (!prof) throw new Error("No user found with that username.");
             if (prof.is_active === false)
                 throw new Error("That account is disabled.");
-            if (prof.role !== "Reader") {
+            if (prof.role !== "Reader")
                 throw new Error("Username must belong to a Reader account.");
-            }
 
-            // Insert borrow (trigger sets due_date/plan/status + decrements stock atomically)
             const { error: insErr } = await withTimeout(
                 supabase.from("borrows").insert({
                     reader_id: prof.id,
@@ -259,7 +330,6 @@ export default function BookDetailsPage() {
             if (insErr) throw insErr;
 
             setBorrowOk("Borrow created successfully.");
-            // Reload book (stock changes)
             await load({ silent: true });
         } catch (e) {
             setBorrowError(e?.message || "Borrow failed");
@@ -268,7 +338,7 @@ export default function BookDetailsPage() {
         }
     };
 
-    // Loading shell
+    // Loading / Error / Not found shells (use correct radii)
     if (loading) {
         return (
             <RoleGuard
@@ -281,7 +351,7 @@ export default function BookDetailsPage() {
             >
                 <AppShell title="Book">
                     <PageHeader title="Book" subtitle="Loading…" />
-                    <Paper variant="outlined" sx={{ borderRadius: 4, p: 3 }}>
+                    <Paper variant="outlined" sx={{ ...surfaceCard, p: 2.5 }}>
                         <Typography sx={{ fontWeight: 900 }}>
                             Loading…
                         </Typography>
@@ -291,7 +361,6 @@ export default function BookDetailsPage() {
         );
     }
 
-    // Error
     if (error) {
         return (
             <RoleGuard
@@ -304,7 +373,7 @@ export default function BookDetailsPage() {
             >
                 <AppShell title="Book">
                     <PageHeader title="Book" subtitle="Unable to load book" />
-                    <Paper variant="outlined" sx={{ borderRadius: 4, p: 3 }}>
+                    <Paper variant="outlined" sx={{ ...surfaceCard, p: 2.5 }}>
                         <Typography
                             sx={{ fontWeight: 900, color: "error.main" }}
                         >
@@ -322,7 +391,6 @@ export default function BookDetailsPage() {
         );
     }
 
-    // Not found
     if (!book) {
         return (
             <RoleGuard
@@ -338,7 +406,7 @@ export default function BookDetailsPage() {
                         title="Book not found"
                         subtitle="This book may not exist."
                     />
-                    <Paper variant="outlined" sx={{ borderRadius: 4, p: 3 }}>
+                    <Paper variant="outlined" sx={{ ...surfaceCard, p: 2.5 }}>
                         <Typography sx={{ fontWeight: 900 }}>
                             Not found
                         </Typography>
@@ -354,7 +422,12 @@ export default function BookDetailsPage() {
                                 component={Link}
                                 href="/books"
                                 variant="contained"
-                                sx={{ borderRadius: 3 }}
+                                sx={{
+                                    borderRadius: "999px",
+                                    px: 2.2,
+                                    boxShadow: "none",
+                                    "&:hover": { boxShadow: "none" },
+                                }}
                             >
                                 Back to Books
                             </Button>
@@ -365,7 +438,14 @@ export default function BookDetailsPage() {
         );
     }
 
-    const coverUrl = book.cover_image_url || "";
+    const coverUrl = book.coverImageUrl || "";
+
+    // Placeholder borrowing history (replace $ with PKR)
+    const historyRows = [
+        { m: "Mia Sharp", b: "Aug 24, 2025", r: "Aug 30", o: "—", f: 0 },
+        { m: "Celine Moore", b: "Jul 26, 2025", r: "Jul 31", o: "—", f: 0 },
+        { m: "Ava Lin", b: "Jun 15, 2025", r: "Jun 26", o: "4 days", f: 600 },
+    ];
 
     return (
         <RoleGuard
@@ -381,11 +461,21 @@ export default function BookDetailsPage() {
                     title={book.title}
                     subtitle={`${book.genre || "—"} • ${book.author || "—"}`}
                     right={
-                        <>
+                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                             {canManageBooks ? (
                                 <Button
                                     variant="outlined"
-                                    sx={{ borderRadius: 3 }}
+                                    sx={{
+                                        borderRadius: "999px",
+                                        px: 2,
+                                        borderColor: borderSoft,
+                                        "&:hover": {
+                                            borderColor: alpha(
+                                                theme.palette.primary.main,
+                                                0.45
+                                            ),
+                                        },
+                                    }}
                                 >
                                     Edit
                                 </Button>
@@ -394,7 +484,12 @@ export default function BookDetailsPage() {
                             {canManageBooks ? (
                                 <Button
                                     variant="contained"
-                                    sx={{ borderRadius: 3 }}
+                                    sx={{
+                                        borderRadius: "999px",
+                                        px: 2.2,
+                                        boxShadow: "none",
+                                        "&:hover": { boxShadow: "none" },
+                                    }}
                                     onClick={() => {
                                         setBorrowError("");
                                         setBorrowOk("");
@@ -407,7 +502,7 @@ export default function BookDetailsPage() {
                                     Borrow for Reader
                                 </Button>
                             ) : null}
-                        </>
+                        </Box>
                     }
                 />
 
@@ -421,35 +516,40 @@ export default function BookDetailsPage() {
                 >
                     {/* Main */}
                     <Box sx={{ display: "grid", gap: 2 }}>
-                        <Card sx={{ borderRadius: 4 }}>
+                        {/* Book summary card */}
+                        <Card sx={surfaceCard}>
                             <CardContent
                                 sx={{
+                                    p: 2.5,
                                     display: "grid",
                                     gridTemplateColumns: {
                                         xs: "1fr",
-                                        md: "220px 1fr",
+                                        md: "240px 1fr",
                                     },
-                                    gap: 2,
+                                    gap: 2.5,
                                 }}
                             >
                                 {/* Cover */}
                                 <Box
                                     sx={{
-                                        height: 280,
-                                        borderRadius: 4,
-                                        border: "1px solid",
-                                        borderColor: "divider",
+                                        height: 320,
+                                        borderRadius: R.xl,
+                                        border: `1px solid ${borderSoft}`,
                                         overflow: "hidden",
                                         background: coverUrl
                                             ? `url(${coverUrl}) center / cover no-repeat`
-                                            : "linear-gradient(135deg, rgba(255,106,61,0.25) 0%, rgba(255,106,61,0.05) 55%, rgba(0,0,0,0) 100%)",
+                                            : `linear-gradient(135deg,
+                          ${alpha(theme.palette.primary.main, 0.35)} 0%,
+                          ${alpha(theme.palette.primary.main, 0.1)} 55%,
+                          ${alpha("#000000", 0)} 100%)`,
+                                        position: "relative",
                                     }}
-                                />
-
-                                {/* Details */}
-                                <Box>
+                                >
                                     <Box
                                         sx={{
+                                            position: "absolute",
+                                            left: 14,
+                                            top: 14,
                                             display: "flex",
                                             gap: 1,
                                             flexWrap: "wrap",
@@ -459,35 +559,36 @@ export default function BookDetailsPage() {
                                             size="small"
                                             label={book.genre || "—"}
                                             sx={{
-                                                borderRadius: 2,
-                                                fontWeight: 800,
+                                                height: 28,
+                                                borderRadius: "999px",
+                                                fontWeight: 850,
+                                                bgcolor: alpha(
+                                                    theme.palette.primary.main,
+                                                    isDark ? 0.14 : 0.1
+                                                ),
+                                                color: "primary.main",
+                                                border: `1px solid ${alpha(
+                                                    theme.palette.primary.main,
+                                                    0.22
+                                                )}`,
+                                                "& .MuiChip-label": { px: 1.1 },
                                             }}
                                         />
-                                        <Chip
-                                            size="small"
-                                            label={
-                                                book.stockAvailable > 0
-                                                    ? "Available"
-                                                    : "Out of stock"
-                                            }
-                                            sx={{
-                                                borderRadius: 2,
-                                                fontWeight: 800,
-                                                backgroundColor:
-                                                    book.stockAvailable > 0
-                                                        ? "rgba(46,204,113,0.15)"
-                                                        : "rgba(231,76,60,0.15)",
-                                                color:
-                                                    book.stockAvailable > 0
-                                                        ? "#2ecc71"
-                                                        : "#e74c3c",
-                                            }}
+                                        <AvailabilityPill
+                                            available={book.stockAvailable}
                                         />
                                     </Box>
+                                </Box>
 
+                                {/* Details */}
+                                <Box sx={{ minWidth: 0 }}>
                                     <Typography
                                         variant="h5"
-                                        sx={{ fontWeight: 900, mt: 1 }}
+                                        sx={{
+                                            fontWeight: 950,
+                                            letterSpacing: "-0.02em",
+                                            lineHeight: 1.15,
+                                        }}
                                     >
                                         {book.title}
                                     </Typography>
@@ -495,13 +596,30 @@ export default function BookDetailsPage() {
                                     <Typography
                                         sx={{
                                             color: "text.secondary",
-                                            mt: 0.5,
+                                            mt: 0.75,
                                         }}
                                     >
                                         By <b>{book.author || "—"}</b>
                                     </Typography>
 
-                                    <Divider sx={{ my: 2 }} />
+                                    {/* Price (PKR) if present */}
+                                    {book.price != null ? (
+                                        <Typography
+                                            sx={{ mt: 0.75, fontWeight: 850 }}
+                                        >
+                                            Price:{" "}
+                                            <Box
+                                                component="span"
+                                                sx={{ color: "primary.main" }}
+                                            >
+                                                {moneyPKR(book.price)}
+                                            </Box>
+                                        </Typography>
+                                    ) : null}
+
+                                    <Divider
+                                        sx={{ my: 2, borderColor: borderSoft }}
+                                    />
 
                                     <Box
                                         sx={{
@@ -539,11 +657,16 @@ export default function BookDetailsPage() {
                                         />
                                     </Box>
 
-                                    <Divider sx={{ my: 2 }} />
+                                    <Divider
+                                        sx={{ my: 2, borderColor: borderSoft }}
+                                    />
 
                                     <Typography
                                         variant="body2"
-                                        sx={{ color: "text.secondary" }}
+                                        sx={{
+                                            color: "text.secondary",
+                                            lineHeight: 1.65,
+                                        }}
                                     >
                                         {book.description || "—"}
                                     </Typography>
@@ -563,7 +686,21 @@ export default function BookDetailsPage() {
                                                     key={t}
                                                     size="small"
                                                     label={t}
-                                                    sx={{ borderRadius: 2 }}
+                                                    sx={{
+                                                        height: 28,
+                                                        borderRadius: "999px",
+                                                        fontWeight: 750,
+                                                        bgcolor: alpha(
+                                                            isDark
+                                                                ? "#FFFFFF"
+                                                                : "#0F1115",
+                                                            isDark ? 0.06 : 0.04
+                                                        ),
+                                                        border: `1px solid ${borderSoft}`,
+                                                        "& .MuiChip-label": {
+                                                            px: 1.1,
+                                                        },
+                                                    }}
                                                 />
                                             ))}
                                         </Box>
@@ -572,10 +709,15 @@ export default function BookDetailsPage() {
                             </CardContent>
                         </Card>
 
-                        {/* Borrowing history placeholder */}
-                        <Card sx={{ borderRadius: 4 }}>
-                            <CardContent>
-                                <Typography sx={{ fontWeight: 900 }}>
+                        {/* Borrowing history */}
+                        <Card sx={surfaceCard}>
+                            <CardContent sx={{ p: 2.5 }}>
+                                <Typography
+                                    sx={{
+                                        fontWeight: 950,
+                                        letterSpacing: "-0.01em",
+                                    }}
+                                >
                                     Borrowing History
                                 </Typography>
                                 <Typography
@@ -585,47 +727,69 @@ export default function BookDetailsPage() {
                                     UI placeholder data
                                 </Typography>
 
-                                <Divider sx={{ my: 2 }} />
+                                <Divider
+                                    sx={{ my: 2, borderColor: borderSoft }}
+                                />
 
                                 <Table size="small">
                                     <TableHead>
                                         <TableRow>
-                                            <TableCell>Member</TableCell>
-                                            <TableCell>Borrow</TableCell>
-                                            <TableCell>Return</TableCell>
-                                            <TableCell>Overdue</TableCell>
-                                            <TableCell align="right">
-                                                Fine
+                                            <TableCell
+                                                sx={{
+                                                    color: "text.secondary",
+                                                    fontWeight: 850,
+                                                }}
+                                            >
+                                                Member
+                                            </TableCell>
+                                            <TableCell
+                                                sx={{
+                                                    color: "text.secondary",
+                                                    fontWeight: 850,
+                                                }}
+                                            >
+                                                Borrow
+                                            </TableCell>
+                                            <TableCell
+                                                sx={{
+                                                    color: "text.secondary",
+                                                    fontWeight: 850,
+                                                }}
+                                            >
+                                                Return
+                                            </TableCell>
+                                            <TableCell
+                                                sx={{
+                                                    color: "text.secondary",
+                                                    fontWeight: 850,
+                                                }}
+                                            >
+                                                Overdue
+                                            </TableCell>
+                                            <TableCell
+                                                align="right"
+                                                sx={{
+                                                    color: "text.secondary",
+                                                    fontWeight: 850,
+                                                }}
+                                            >
+                                                Fine (PKR)
                                             </TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {[
-                                            {
-                                                m: "Mia Sharp",
-                                                b: "Aug 24, 2025",
-                                                r: "Aug 30",
-                                                o: "—",
-                                                f: "$0.00",
-                                            },
-                                            {
-                                                m: "Celine Moore",
-                                                b: "Jul 26, 2025",
-                                                r: "Jul 31",
-                                                o: "—",
-                                                f: "$0.00",
-                                            },
-                                            {
-                                                m: "Ava Lin",
-                                                b: "Jun 15, 2025",
-                                                r: "Jun 26",
-                                                o: "4 days",
-                                                f: "$2.00",
-                                            },
-                                        ].map((row) => (
-                                            <TableRow key={row.m}>
+                                        {historyRows.map((row) => (
+                                            <TableRow
+                                                key={row.m}
+                                                sx={{
+                                                    "&:hover": {
+                                                        backgroundColor:
+                                                            hoverBg,
+                                                    },
+                                                }}
+                                            >
                                                 <TableCell
-                                                    sx={{ fontWeight: 800 }}
+                                                    sx={{ fontWeight: 850 }}
                                                 >
                                                     {row.m}
                                                 </TableCell>
@@ -633,7 +797,7 @@ export default function BookDetailsPage() {
                                                 <TableCell>{row.r}</TableCell>
                                                 <TableCell>{row.o}</TableCell>
                                                 <TableCell align="right">
-                                                    {row.f}
+                                                    {moneyPKR(row.f)}
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -645,9 +809,14 @@ export default function BookDetailsPage() {
 
                     {/* Right rail */}
                     <Box sx={{ display: "grid", gap: 2 }}>
-                        <Card sx={{ borderRadius: 4 }}>
-                            <CardContent>
-                                <Typography sx={{ fontWeight: 900 }}>
+                        <Card sx={surfaceCard}>
+                            <CardContent sx={{ p: 2.5 }}>
+                                <Typography
+                                    sx={{
+                                        fontWeight: 950,
+                                        letterSpacing: "-0.01em",
+                                    }}
+                                >
                                     Reservations
                                 </Typography>
                                 <Typography
@@ -657,16 +826,49 @@ export default function BookDetailsPage() {
                                     Queue overview (UI placeholder)
                                 </Typography>
 
-                                <Divider sx={{ my: 2 }} />
+                                <Divider
+                                    sx={{ my: 2, borderColor: borderSoft }}
+                                />
 
                                 <AvatarGroup
                                     max={4}
                                     sx={{ justifyContent: "flex-start" }}
                                 >
-                                    <Avatar>MR</Avatar>
-                                    <Avatar>NT</Avatar>
-                                    <Avatar>EA</Avatar>
-                                    <Avatar>NM</Avatar>
+                                    <Avatar
+                                        sx={{
+                                            bgcolor: alpha(
+                                                theme.palette.primary.main,
+                                                0.25
+                                            ),
+                                            color: "text.primary",
+                                        }}
+                                    >
+                                        MR
+                                    </Avatar>
+                                    <Avatar
+                                        sx={{
+                                            bgcolor: alpha("#3B82F6", 0.25),
+                                            color: "text.primary",
+                                        }}
+                                    >
+                                        NT
+                                    </Avatar>
+                                    <Avatar
+                                        sx={{
+                                            bgcolor: alpha("#2BB673", 0.25),
+                                            color: "text.primary",
+                                        }}
+                                    >
+                                        EA
+                                    </Avatar>
+                                    <Avatar
+                                        sx={{
+                                            bgcolor: alpha("#F5A524", 0.25),
+                                            color: "text.primary",
+                                        }}
+                                    >
+                                        NM
+                                    </Avatar>
                                 </AvatarGroup>
 
                                 <Box sx={{ mt: 2, display: "grid", gap: 1 }}>
@@ -677,10 +879,23 @@ export default function BookDetailsPage() {
                                         <Paper
                                             key={x.t}
                                             variant="outlined"
-                                            sx={{ p: 1.25, borderRadius: 3 }}
+                                            sx={{
+                                                p: 1.25,
+                                                borderRadius: R.lg,
+                                                borderColor: borderSoft,
+                                                background: alpha(
+                                                    isDark
+                                                        ? "#FFFFFF"
+                                                        : "#0F1115",
+                                                    isDark ? 0.03 : 0.02
+                                                ),
+                                                "&:hover": {
+                                                    backgroundColor: hoverBg,
+                                                },
+                                            }}
                                         >
                                             <Typography
-                                                sx={{ fontWeight: 800 }}
+                                                sx={{ fontWeight: 850 }}
                                             >
                                                 {x.t}
                                             </Typography>
@@ -696,12 +911,20 @@ export default function BookDetailsPage() {
                             </CardContent>
                         </Card>
 
-                        <Card sx={{ borderRadius: 4 }}>
-                            <CardContent>
-                                <Typography sx={{ fontWeight: 900 }}>
+                        <Card sx={surfaceCard}>
+                            <CardContent sx={{ p: 2.5 }}>
+                                <Typography
+                                    sx={{
+                                        fontWeight: 950,
+                                        letterSpacing: "-0.01em",
+                                    }}
+                                >
                                     Stock
                                 </Typography>
-                                <Divider sx={{ my: 2 }} />
+                                <Divider
+                                    sx={{ my: 2, borderColor: borderSoft }}
+                                />
+
                                 <Box
                                     sx={{
                                         display: "grid",
@@ -711,7 +934,15 @@ export default function BookDetailsPage() {
                                 >
                                     <Paper
                                         variant="outlined"
-                                        sx={{ p: 1.25, borderRadius: 3 }}
+                                        sx={{
+                                            p: 1.25,
+                                            borderRadius: R.lg,
+                                            borderColor: borderSoft,
+                                            background: alpha(
+                                                isDark ? "#FFFFFF" : "#0F1115",
+                                                isDark ? 0.03 : 0.02
+                                            ),
+                                        }}
                                     >
                                         <Typography
                                             variant="body2"
@@ -721,16 +952,25 @@ export default function BookDetailsPage() {
                                         </Typography>
                                         <Typography
                                             sx={{
-                                                fontWeight: 900,
+                                                fontWeight: 950,
                                                 fontSize: 22,
                                             }}
                                         >
                                             {book.stockTotal}
                                         </Typography>
                                     </Paper>
+
                                     <Paper
                                         variant="outlined"
-                                        sx={{ p: 1.25, borderRadius: 3 }}
+                                        sx={{
+                                            p: 1.25,
+                                            borderRadius: R.lg,
+                                            borderColor: borderSoft,
+                                            background: alpha(
+                                                isDark ? "#FFFFFF" : "#0F1115",
+                                                isDark ? 0.03 : 0.02
+                                            ),
+                                        }}
                                     >
                                         <Typography
                                             variant="body2"
@@ -740,7 +980,7 @@ export default function BookDetailsPage() {
                                         </Typography>
                                         <Typography
                                             sx={{
-                                                fontWeight: 900,
+                                                fontWeight: 950,
                                                 fontSize: 22,
                                             }}
                                         >
@@ -751,9 +991,14 @@ export default function BookDetailsPage() {
                             </CardContent>
                         </Card>
 
-                        <Card sx={{ borderRadius: 4 }}>
-                            <CardContent>
-                                <Typography sx={{ fontWeight: 900 }}>
+                        <Card sx={surfaceCard}>
+                            <CardContent sx={{ p: 2.5 }}>
+                                <Typography
+                                    sx={{
+                                        fontWeight: 950,
+                                        letterSpacing: "-0.01em",
+                                    }}
+                                >
                                     Related Books
                                 </Typography>
                                 <Typography
@@ -763,19 +1008,36 @@ export default function BookDetailsPage() {
                                     Same genre (live)
                                 </Typography>
 
-                                <Divider sx={{ my: 2 }} />
+                                <Divider
+                                    sx={{ my: 2, borderColor: borderSoft }}
+                                />
 
                                 <Box sx={{ display: "grid", gap: 1 }}>
                                     {related.map((b) => (
                                         <Paper
                                             key={b.id}
                                             variant="outlined"
-                                            sx={{ p: 1.25, borderRadius: 3 }}
                                             component={Link}
                                             href={`/books/${b.id}`}
+                                            sx={{
+                                                p: 1.25,
+                                                borderRadius: R.lg,
+                                                borderColor: borderSoft,
+                                                textDecoration: "none",
+                                                color: "inherit",
+                                                background: alpha(
+                                                    isDark
+                                                        ? "#FFFFFF"
+                                                        : "#0F1115",
+                                                    isDark ? 0.03 : 0.02
+                                                ),
+                                                "&:hover": {
+                                                    backgroundColor: hoverBg,
+                                                },
+                                            }}
                                         >
                                             <Typography
-                                                sx={{ fontWeight: 800 }}
+                                                sx={{ fontWeight: 850 }}
                                                 noWrap
                                             >
                                                 {b.title}
@@ -804,21 +1066,21 @@ export default function BookDetailsPage() {
                     </Box>
                 </Box>
 
-                {/* Borrow dialog (Librarian/Admin only) */}
+                {/* Borrow dialog */}
                 <Dialog
                     open={borrowOpen}
                     onClose={() => setBorrowOpen(false)}
                     fullWidth
                     maxWidth="sm"
                 >
-                    <DialogTitle sx={{ fontWeight: 900 }}>
+                    <DialogTitle sx={{ fontWeight: 950 }}>
                         Borrow for Reader
                     </DialogTitle>
                     <DialogContent sx={{ pt: 1 }}>
                         {borrowError ? (
                             <Alert
                                 severity="error"
-                                sx={{ mb: 2, borderRadius: 3 }}
+                                sx={{ mb: 2, borderRadius: R.lg }}
                             >
                                 {borrowError}
                             </Alert>
@@ -826,7 +1088,7 @@ export default function BookDetailsPage() {
                         {borrowOk ? (
                             <Alert
                                 severity="success"
-                                sx={{ mb: 2, borderRadius: 3 }}
+                                sx={{ mb: 2, borderRadius: R.lg }}
                             >
                                 {borrowOk}
                             </Alert>
@@ -875,10 +1137,21 @@ export default function BookDetailsPage() {
                             subscription, fine threshold, branch hours, stock).
                         </Typography>
                     </DialogContent>
+
                     <DialogActions sx={{ p: 2 }}>
                         <Button
                             variant="outlined"
-                            sx={{ borderRadius: 3 }}
+                            sx={{
+                                borderRadius: "999px",
+                                px: 2,
+                                borderColor: borderSoft,
+                                "&:hover": {
+                                    borderColor: alpha(
+                                        theme.palette.primary.main,
+                                        0.45
+                                    ),
+                                },
+                            }}
                             onClick={() => setBorrowOpen(false)}
                             disabled={borrowSaving}
                         >
@@ -886,7 +1159,12 @@ export default function BookDetailsPage() {
                         </Button>
                         <Button
                             variant="contained"
-                            sx={{ borderRadius: 3 }}
+                            sx={{
+                                borderRadius: "999px",
+                                px: 2.2,
+                                boxShadow: "none",
+                                "&:hover": { boxShadow: "none" },
+                            }}
                             onClick={submitBorrow}
                             disabled={borrowSaving}
                         >
@@ -905,7 +1183,7 @@ function Meta({ label, value }) {
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
                 {label}
             </Typography>
-            <Typography sx={{ fontWeight: 800 }}>{value}</Typography>
+            <Typography sx={{ fontWeight: 850 }}>{value}</Typography>
         </Box>
     );
 }

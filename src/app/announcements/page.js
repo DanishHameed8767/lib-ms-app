@@ -1,3 +1,4 @@
+// src/app/announcements/page.js
 "use client";
 
 import * as React from "react";
@@ -14,6 +15,13 @@ import AppShell from "../../components/AppShell";
 import PageHeader from "../../components/PageHeader";
 import { useAuth } from "@/context/AuthContext";
 
+// ✅ IMPORTANT: use px strings so MUI doesn't multiply by theme.shape.borderRadius (=14)
+const R = {
+    card: "14px",
+    soft: "12px",
+    chip: "999px",
+};
+
 function isoDate(d = new Date()) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -23,11 +31,21 @@ function isoDate(d = new Date()) {
 
 function ExpiryChip({ expirationDate }) {
     const label = expirationDate ? `Until ${expirationDate}` : "No expiry";
+    const hasExpiry = Boolean(expirationDate);
+
     return (
         <Chip
             size="small"
             label={label}
-            sx={{ borderRadius: 2, fontWeight: 900 }}
+            sx={{
+                borderRadius: R.chip, // ✅ not multiplied
+                fontWeight: 900,
+                backgroundColor: hasExpiry
+                    ? "rgba(255,255,255,0.06)"
+                    : "rgba(46,204,113,0.15)",
+                color: hasExpiry ? "text.secondary" : "#2ecc71",
+                borderColor: "divider",
+            }}
             variant="outlined"
         />
     );
@@ -81,96 +99,185 @@ export default function AnnouncementsPage() {
 
     return (
         <AppShell title="Announcements">
-            <PageHeader
-                title="Announcements"
-                subtitle="Latest notices from your library."
-            />
+            <Box sx={{ minWidth: 0 }}>
+                <PageHeader
+                    title="Announcements"
+                    subtitle="Latest notices from your library."
+                />
 
-            {error ? (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                    {error}
-                </Alert>
-            ) : null}
+                {error ? (
+                    <Alert
+                        severity="error"
+                        sx={{ mt: 2, borderRadius: R.soft }}
+                    >
+                        {error}
+                    </Alert>
+                ) : null}
 
-            {loading ? (
-                <Paper variant="outlined" sx={{ mt: 2, borderRadius: 4, p: 2 }}>
-                    <Box
+                {/* Summary bar */}
+                <Paper
+                    variant="outlined"
+                    sx={{
+                        mt: 2,
+                        borderRadius: R.card, // ✅ not multiplied
+                        p: 1.25,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        flexWrap: "wrap",
+                        minWidth: 0,
+                        background:
+                            "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
+                        borderColor: "divider",
+                    }}
+                >
+                    <Typography sx={{ fontWeight: 900 }}>
+                        {loading
+                            ? "Loading…"
+                            : `Showing ${rows.length} announcement${
+                                  rows.length === 1 ? "" : "s"
+                              }`}
+                    </Typography>
+                    <Box sx={{ flex: 1 }} />
+                    <Chip
+                        size="small"
+                        label="Active"
                         sx={{
-                            display: "flex",
-                            gap: 1.25,
-                            alignItems: "center",
+                            borderRadius: R.chip,
+                            fontWeight: 900,
+                            backgroundColor: "rgba(46,204,113,0.15)",
+                            color: "#2ecc71",
+                        }}
+                    />
+                </Paper>
+
+                {loading ? (
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            mt: 2,
+                            borderRadius: R.card, // ✅ not multiplied
+                            p: 2.25,
+                            minWidth: 0,
+                            background:
+                                "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
                         }}
                     >
-                        <CircularProgress size={18} />
-                        <Typography sx={{ fontWeight: 900 }}>
-                            Loading announcements…
-                        </Typography>
-                    </Box>
-                </Paper>
-            ) : rows.length === 0 ? (
-                <Paper variant="outlined" sx={{ mt: 2, borderRadius: 4, p: 3 }}>
-                    <Typography sx={{ fontWeight: 900 }}>
-                        No announcements
-                    </Typography>
-                    <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary", mt: 0.5 }}
-                    >
-                        Nothing new right now.
-                    </Typography>
-                </Paper>
-            ) : (
-                <Box sx={{ mt: 2, display: "grid", gap: 2 }}>
-                    {rows.map((a) => (
-                        <Paper
-                            key={a.id}
-                            variant="outlined"
-                            sx={{ borderRadius: 4, overflow: "hidden" }}
+                        <Box
+                            sx={{
+                                display: "flex",
+                                gap: 1.25,
+                                alignItems: "center",
+                            }}
                         >
-                            <Box
+                            <CircularProgress size={18} />
+                            <Typography sx={{ fontWeight: 900 }}>
+                                Loading announcements…
+                            </Typography>
+                        </Box>
+                    </Paper>
+                ) : rows.length === 0 ? (
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            mt: 2,
+                            borderRadius: R.card, // ✅ not multiplied
+                            p: 3,
+                            minWidth: 0,
+                            textAlign: "center",
+                        }}
+                    >
+                        <Typography sx={{ fontWeight: 900 }}>
+                            No announcements
+                        </Typography>
+                        <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary", mt: 0.5 }}
+                        >
+                            Nothing new right now.
+                        </Typography>
+                    </Paper>
+                ) : (
+                    <Box sx={{ mt: 2, display: "grid", gap: 2, minWidth: 0 }}>
+                        {rows.map((a) => (
+                            <Paper
+                                key={a.id}
+                                variant="outlined"
                                 sx={{
-                                    p: 2,
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    gap: 2,
-                                    flexWrap: "wrap",
+                                    borderRadius: R.card, // ✅ not multiplied
+                                    overflow: "hidden",
+                                    minWidth: 0,
+                                    background:
+                                        "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)",
+                                    borderColor: "divider",
                                 }}
                             >
-                                <Box>
-                                    <Typography sx={{ fontWeight: 900 }}>
-                                        {a.title}
-                                    </Typography>
+                                <Box
+                                    sx={{
+                                        p: 2,
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        gap: 2,
+                                        flexWrap: "wrap",
+                                        alignItems: "flex-start",
+                                        minWidth: 0,
+                                    }}
+                                >
+                                    <Box sx={{ minWidth: 0 }}>
+                                        <Typography
+                                            sx={{ fontWeight: 900 }}
+                                            noWrap
+                                        >
+                                            {a.title}
+                                        </Typography>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{
+                                                color: "text.secondary",
+                                                mt: 0.25,
+                                            }}
+                                            noWrap
+                                        >
+                                            Expires:{" "}
+                                            <b>{a.expiration_date || "—"}</b>
+                                        </Typography>
+                                    </Box>
+
+                                    <ExpiryChip
+                                        expirationDate={a.expiration_date}
+                                    />
+                                </Box>
+
+                                <Divider sx={{ borderColor: "divider" }} />
+
+                                <Box sx={{ p: 2, minWidth: 0 }}>
                                     <Typography
                                         variant="body2"
                                         sx={{
                                             color: "text.secondary",
-                                            mt: 0.25,
+                                            lineHeight: 1.7,
+                                            whiteSpace: "pre-wrap",
+                                            wordBreak: "break-word",
                                         }}
                                     >
-                                        Expires:{" "}
-                                        <b>{a.expiration_date || "—"}</b>
+                                        {a.description}
                                     </Typography>
                                 </Box>
 
-                                <ExpiryChip
-                                    expirationDate={a.expiration_date}
+                                {/* subtle bottom accent */}
+                                <Box
+                                    aria-hidden
+                                    sx={{
+                                        height: 2,
+                                        background:
+                                            "linear-gradient(90deg, rgba(255,106,61,0.9), rgba(255,106,61,0))",
+                                    }}
                                 />
-                            </Box>
-
-                            <Divider />
-
-                            <Box sx={{ p: 2 }}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{ color: "text.secondary" }}
-                                >
-                                    {a.description}
-                                </Typography>
-                            </Box>
-                        </Paper>
-                    ))}
-                </Box>
-            )}
+                            </Paper>
+                        ))}
+                    </Box>
+                )}
+            </Box>
         </AppShell>
     );
 }

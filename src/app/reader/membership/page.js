@@ -28,53 +28,67 @@ import RoleGuard from "../../../components/RoleGuard";
 import { ROLES } from "../../../lib/roles";
 import { useAuth } from "@/context/AuthContext";
 import { uploadReceiptAndCreatePayment } from "@/lib/supabase/readerApi";
-import { money } from "../../../lib/mock/readerFines";
 
-function StatusChip({ status }) {
+/** ✅ Stop "weird rounding": use px strings so MUI doesn't multiply by theme.shape.borderRadius */
+const R = {
+    card: "14px",
+    soft: "12px",
+    btn: "12px",
+    drawer: "16px",
+    chip: "999px",
+};
+
+/** ✅ PKR everywhere */
+function moneyPKR(n) {
+    const v = Number(n || 0);
+    return v.toLocaleString(undefined, { style: "currency", currency: "PKR" });
+}
+
+function PillChip({ label, tone = "neutral", sx, variant }) {
     const map = {
-        Active: { bg: "rgba(46,204,113,0.15)", fg: "#2ecc71" },
-        Pending: { bg: "rgba(255,106,61,0.15)", fg: "primary.main" },
-        Rejected: { bg: "rgba(231,76,60,0.15)", fg: "#e74c3c" },
-        Expired: { bg: "rgba(160,160,160,0.18)", fg: "text.secondary" },
-        Cancelled: { bg: "rgba(160,160,160,0.18)", fg: "text.secondary" },
+        ok: { bg: "rgba(46,204,113,0.15)", fg: "#2ecc71" },
+        warn: { bg: "rgba(255,106,61,0.15)", fg: "primary.main" },
+        danger: { bg: "rgba(231,76,60,0.15)", fg: "#e74c3c" },
+        neutral: { bg: "rgba(160,160,160,0.18)", fg: "text.secondary" },
     };
-    const s = map[status] || map.Pending;
+    const s = map[tone] || map.neutral;
+
     return (
         <Chip
             size="small"
-            label={status || "—"}
+            label={label}
+            variant={variant}
             sx={{
-                borderRadius: 2,
+                borderRadius: R.chip,
                 fontWeight: 900,
                 backgroundColor: s.bg,
                 color: s.fg,
+                borderColor: "divider",
+                ...sx,
             }}
         />
     );
 }
 
+function StatusChip({ status }) {
+    if (status === "Active") return <PillChip label="Active" tone="ok" />;
+    if (status === "Pending") return <PillChip label="Pending" tone="warn" />;
+    if (status === "Rejected")
+        return <PillChip label="Rejected" tone="danger" />;
+    if (status === "Expired")
+        return <PillChip label="Expired" tone="neutral" />;
+    if (status === "Cancelled")
+        return <PillChip label="Cancelled" tone="neutral" />;
+    return <PillChip label={status || "—"} tone="neutral" />;
+}
+
 function ReceiptChip({ status }) {
-    if (!status)
-        return <Chip size="small" label="—" sx={{ borderRadius: 2 }} />;
-    const map = {
-        Pending: { bg: "rgba(255,106,61,0.15)", fg: "primary.main" },
-        Approved: { bg: "rgba(46,204,113,0.15)", fg: "#2ecc71" },
-        Rejected: { bg: "rgba(231,76,60,0.15)", fg: "#e74c3c" },
-        Cancelled: { bg: "rgba(160,160,160,0.18)", fg: "text.secondary" },
-    };
-    const s = map[status] || map.Pending;
-    return (
-        <Chip
-            size="small"
-            label={status}
-            sx={{
-                borderRadius: 2,
-                fontWeight: 900,
-                backgroundColor: s.bg,
-                color: s.fg,
-            }}
-        />
-    );
+    if (!status) return <PillChip label="—" tone="neutral" />;
+    if (status === "Approved") return <PillChip label="Approved" tone="ok" />;
+    if (status === "Rejected")
+        return <PillChip label="Rejected" tone="danger" />;
+    if (status === "Pending") return <PillChip label="Pending" tone="warn" />;
+    return <PillChip label={status} tone="neutral" />;
 }
 
 function addDaysISO(days) {
@@ -140,7 +154,7 @@ export default function ReaderMembershipPage() {
 
             const ids = (subRows || []).map((x) => x.id).filter(Boolean);
 
-            let latestByEntity = {};
+            const latestByEntity = {};
             if (ids.length) {
                 const { data: rRows, error: rErr } = await supabase
                     .from("payment_receipts")
@@ -201,6 +215,7 @@ export default function ReaderMembershipPage() {
         setSelectedPlanId(planId);
         setFile(null);
         setFileName("");
+        setError("");
         setDrawerOpen(true);
     };
 
@@ -210,12 +225,13 @@ export default function ReaderMembershipPage() {
         setSelectedPlanId(subscription?.plan_id || "");
         setFile(null);
         setFileName("");
+        setError("");
         setDrawerOpen(true);
     };
 
     const endDate = React.useMemo(
         () => addDaysISO(DEFAULT_MEMBERSHIP_DAYS),
-        [drawerOpen] // recompute when opening for “fresh” date
+        [drawerOpen]
     );
 
     const computeDueAmount = React.useCallback(
@@ -244,8 +260,7 @@ export default function ReaderMembershipPage() {
     }, [submitting, file, drawerMode, selectedPlanId, targetSubscription]);
 
     const submit = async () => {
-        if (!supabase || !user) return;
-        if (!file) return;
+        if (!supabase || !user || !file) return;
 
         setSubmitting(true);
         setError("");
@@ -323,618 +338,699 @@ export default function ReaderMembershipPage() {
     return (
         <RoleGuard allowedRoles={[ROLES.READER]}>
             <AppShell title="Membership">
-                <PageHeader
-                    title="Membership"
-                    subtitle="Choose a plan, upload a receipt, and wait for approval."
-                    right={
-                        <Button
-                            variant="contained"
-                            startIcon={<UpgradeOutlinedIcon />}
-                            sx={{ borderRadius: 3 }}
-                            onClick={() => openDrawerForNewOrUpgrade("")}
-                            disabled={loading || !user}
-                        >
-                            {activeSub ? "Upgrade plan" : "Request plan"}
-                        </Button>
-                    }
-                />
-
-                {error ? (
-                    <Alert severity="error" sx={{ mt: 2 }}>
-                        {error}
-                    </Alert>
-                ) : null}
-
-                <Box
-                    sx={{
-                        mt: 2,
-                        display: "grid",
-                        gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
-                        gap: 2,
-                    }}
-                >
-                    <Card sx={{ borderRadius: 4 }}>
-                        <CardContent>
-                            <Typography sx={{ fontWeight: 900 }}>
-                                Current status
-                            </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary", mt: 0.25 }}
+                <Box sx={{ minWidth: 0, overflowX: "hidden" }}>
+                    <PageHeader
+                        title="Membership"
+                        subtitle="Choose a plan, upload a receipt, and wait for approval."
+                        right={
+                            <Button
+                                variant="contained"
+                                startIcon={<UpgradeOutlinedIcon />}
+                                sx={{ borderRadius: R.btn }}
+                                onClick={() => openDrawerForNewOrUpgrade("")}
+                                disabled={loading || !user}
                             >
-                                Borrowing requires an Active plan.
-                            </Typography>
+                                {activeSub ? "Upgrade plan" : "Request plan"}
+                            </Button>
+                        }
+                    />
 
-                            <Divider sx={{ my: 2 }} />
+                    {error ? (
+                        <Alert
+                            severity="error"
+                            sx={{ mt: 2, borderRadius: R.soft }}
+                        >
+                            {error}
+                        </Alert>
+                    ) : null}
 
-                            {loading ? (
-                                <Box
-                                    sx={{
-                                        display: "flex",
-                                        gap: 1.25,
-                                        alignItems: "center",
-                                    }}
+                    {/* Top cards */}
+                    <Box
+                        sx={{
+                            mt: 2,
+                            display: "grid",
+                            gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+                            gap: 2,
+                            minWidth: 0,
+                        }}
+                    >
+                        <Card sx={{ borderRadius: R.card, minWidth: 0 }}>
+                            <CardContent>
+                                <Typography sx={{ fontWeight: 900 }}>
+                                    Current status
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    sx={{ color: "text.secondary", mt: 0.25 }}
                                 >
-                                    <CircularProgress size={18} />
-                                    <Typography sx={{ fontWeight: 800 }}>
-                                        Loading…
-                                    </Typography>
-                                </Box>
-                            ) : activeSub ? (
-                                <Box sx={{ display: "grid", gap: 1 }}>
+                                    Borrowing requires an Active plan.
+                                </Typography>
+
+                                <Divider sx={{ my: 2 }} />
+
+                                {loading ? (
                                     <Box
                                         sx={{
                                             display: "flex",
+                                            gap: 1.25,
                                             alignItems: "center",
-                                            justifyContent: "space-between",
-                                            gap: 2,
                                         }}
                                     >
-                                        <Typography sx={{ fontWeight: 900 }}>
-                                            {activeSub.plan_name || "Plan"}
+                                        <CircularProgress size={18} />
+                                        <Typography sx={{ fontWeight: 800 }}>
+                                            Loading…
                                         </Typography>
-                                        <StatusChip status={activeSub.status} />
                                     </Box>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{ color: "text.secondary" }}
-                                    >
-                                        Valid: {activeSub.start_date} →{" "}
-                                        {activeSub.end_date}
-                                    </Typography>
-                                </Box>
-                            ) : (
-                                <Box sx={{ display: "grid", gap: 1 }}>
-                                    <Typography sx={{ fontWeight: 900 }}>
-                                        No active membership
-                                    </Typography>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{ color: "text.secondary" }}
-                                    >
-                                        You won’t be able to borrow books until
-                                        staff approves your membership payment.
-                                    </Typography>
-                                </Box>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card sx={{ borderRadius: 4 }}>
-                        <CardContent>
-                            <Typography sx={{ fontWeight: 900 }}>
-                                My requests
-                            </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary", mt: 0.25 }}
-                            >
-                                Latest subscription requests and receipt status.
-                            </Typography>
-
-                            <Divider sx={{ my: 2 }} />
-
-                            {loading ? (
-                                <Box
-                                    sx={{
-                                        display: "flex",
-                                        gap: 1.25,
-                                        alignItems: "center",
-                                    }}
-                                >
-                                    <CircularProgress size={18} />
-                                    <Typography sx={{ fontWeight: 800 }}>
-                                        Loading…
-                                    </Typography>
-                                </Box>
-                            ) : subs.length ? (
-                                <Stack spacing={1}>
-                                    {subs.slice(0, 5).map((s) => {
-                                        const receipt = s.latestReceipt;
-                                        const isPendingReceipt =
-                                            receipt?.status === "Pending";
-
-                                        const canReupload =
-                                            s.status === "Rejected" ||
-                                            receipt?.status === "Rejected";
-
-                                        return (
-                                            <Paper
-                                                key={s.id}
-                                                variant="outlined"
-                                                sx={{
-                                                    borderRadius: 3,
-                                                    p: 1.25,
-                                                    display: "grid",
-                                                    gap: 0.75,
-                                                }}
+                                ) : activeSub ? (
+                                    <Box sx={{ display: "grid", gap: 1 }}>
+                                        <Box
+                                            sx={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                gap: 2,
+                                                minWidth: 0,
+                                            }}
+                                        >
+                                            <Typography
+                                                sx={{ fontWeight: 900 }}
+                                                noWrap
                                             >
-                                                <Box
-                                                    sx={{
-                                                        display: "flex",
-                                                        justifyContent:
-                                                            "space-between",
-                                                        alignItems: "center",
-                                                        gap: 1,
-                                                    }}
-                                                >
-                                                    <Typography
-                                                        sx={{ fontWeight: 900 }}
-                                                        noWrap
-                                                    >
-                                                        {s.plan_name || "Plan"}
-                                                    </Typography>
-                                                    <StatusChip
-                                                        status={s.status}
-                                                    />
-                                                </Box>
+                                                {activeSub.plan_name || "Plan"}
+                                            </Typography>
+                                            <StatusChip
+                                                status={activeSub.status}
+                                            />
+                                        </Box>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{ color: "text.secondary" }}
+                                        >
+                                            Valid: {activeSub.start_date || "—"}{" "}
+                                            → {activeSub.end_date || "—"}
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    <Box sx={{ display: "grid", gap: 1 }}>
+                                        <Typography sx={{ fontWeight: 900 }}>
+                                            No active membership
+                                        </Typography>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{ color: "text.secondary" }}
+                                        >
+                                            You won’t be able to borrow books
+                                            until staff approves your payment.
+                                        </Typography>
+                                        <Box sx={{ mt: 1 }}>
+                                            <PillChip
+                                                label="Pick a plan below to get started"
+                                                tone="warn"
+                                            />
+                                        </Box>
+                                    </Box>
+                                )}
+                            </CardContent>
+                        </Card>
 
-                                                <Box
+                        <Card sx={{ borderRadius: R.card, minWidth: 0 }}>
+                            <CardContent>
+                                <Typography sx={{ fontWeight: 900 }}>
+                                    My requests
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    sx={{ color: "text.secondary", mt: 0.25 }}
+                                >
+                                    Latest subscription requests and receipt
+                                    status.
+                                </Typography>
+
+                                <Divider sx={{ my: 2 }} />
+
+                                {loading ? (
+                                    <Box
+                                        sx={{
+                                            display: "flex",
+                                            gap: 1.25,
+                                            alignItems: "center",
+                                        }}
+                                    >
+                                        <CircularProgress size={18} />
+                                        <Typography sx={{ fontWeight: 800 }}>
+                                            Loading…
+                                        </Typography>
+                                    </Box>
+                                ) : subs.length ? (
+                                    <Stack spacing={1}>
+                                        {subs.slice(0, 5).map((s) => {
+                                            const receipt = s.latestReceipt;
+                                            const isPendingReceipt =
+                                                receipt?.status === "Pending";
+                                            const canReupload =
+                                                s.status === "Rejected" ||
+                                                receipt?.status === "Rejected";
+
+                                            return (
+                                                <Paper
+                                                    key={s.id}
+                                                    variant="outlined"
                                                     sx={{
-                                                        display: "flex",
-                                                        gap: 1,
-                                                        flexWrap: "wrap",
-                                                        alignItems: "center",
+                                                        borderRadius: R.card,
+                                                        p: 1.25,
+                                                        display: "grid",
+                                                        gap: 0.9,
+                                                        minWidth: 0,
                                                     }}
                                                 >
-                                                    <Chip
-                                                        size="small"
-                                                        label={`Paid: ${money(
-                                                            s.amount_paid
-                                                        )}`}
+                                                    <Box
                                                         sx={{
-                                                            borderRadius: 2,
-                                                            fontWeight: 900,
+                                                            display: "flex",
+                                                            justifyContent:
+                                                                "space-between",
+                                                            alignItems:
+                                                                "center",
+                                                            gap: 1,
+                                                            minWidth: 0,
                                                         }}
-                                                        variant="outlined"
-                                                    />
-                                                    <ReceiptChip
-                                                        status={
-                                                            receipt?.status ||
-                                                            null
-                                                        }
-                                                    />
-
-                                                    {receipt?.status ===
-                                                    "Rejected" ? (
-                                                        <Button
-                                                            size="small"
-                                                            variant="outlined"
+                                                    >
+                                                        <Typography
                                                             sx={{
-                                                                borderRadius: 3,
-                                                                ml: "auto",
+                                                                fontWeight: 900,
                                                             }}
-                                                            onClick={() =>
-                                                                window.alert(
-                                                                    `Reviewer note: ${
-                                                                        receipt?.review_note ||
-                                                                        "—"
-                                                                    }`
-                                                                )
-                                                            }
+                                                            noWrap
                                                         >
-                                                            View note
-                                                        </Button>
-                                                    ) : (
+                                                            {s.plan_name ||
+                                                                "Plan"}
+                                                        </Typography>
+                                                        <StatusChip
+                                                            status={s.status}
+                                                        />
+                                                    </Box>
+
+                                                    <Box
+                                                        sx={{
+                                                            display: "flex",
+                                                            gap: 1,
+                                                            flexWrap: "wrap",
+                                                            alignItems:
+                                                                "center",
+                                                            minWidth: 0,
+                                                        }}
+                                                    >
+                                                        <PillChip
+                                                            label={`Paid: ${moneyPKR(
+                                                                s.amount_paid
+                                                            )}`}
+                                                            tone="neutral"
+                                                            variant="outlined"
+                                                        />
+                                                        <ReceiptChip
+                                                            status={
+                                                                receipt?.status ||
+                                                                null
+                                                            }
+                                                        />
                                                         <Box
                                                             sx={{
                                                                 flex: 1,
                                                                 minWidth: 0,
                                                             }}
                                                         />
-                                                    )}
 
-                                                    <Button
+                                                        {receipt?.status ===
+                                                        "Rejected" ? (
+                                                            <Button
+                                                                size="small"
+                                                                variant="outlined"
+                                                                sx={{
+                                                                    borderRadius:
+                                                                        R.btn,
+                                                                }}
+                                                                onClick={() =>
+                                                                    window.alert(
+                                                                        `Reviewer note: ${
+                                                                            receipt?.review_note ||
+                                                                            "—"
+                                                                        }`
+                                                                    )
+                                                                }
+                                                            >
+                                                                View note
+                                                            </Button>
+                                                        ) : null}
+
+                                                        <Button
+                                                            size="small"
+                                                            variant={
+                                                                canReupload
+                                                                    ? "contained"
+                                                                    : "outlined"
+                                                            }
+                                                            startIcon={
+                                                                <UploadOutlinedIcon />
+                                                            }
+                                                            sx={{
+                                                                borderRadius:
+                                                                    R.btn,
+                                                            }}
+                                                            disabled={
+                                                                isPendingReceipt ||
+                                                                !canReupload
+                                                            }
+                                                            onClick={() =>
+                                                                openDrawerForReupload(
+                                                                    s
+                                                                )
+                                                            }
+                                                        >
+                                                            {canReupload
+                                                                ? "Re-upload"
+                                                                : "Upload"}
+                                                        </Button>
+                                                    </Box>
+                                                </Paper>
+                                            );
+                                        })}
+                                    </Stack>
+                                ) : (
+                                    <Typography
+                                        variant="body2"
+                                        sx={{ color: "text.secondary" }}
+                                    >
+                                        No subscription requests yet.
+                                    </Typography>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </Box>
+
+                    {/* Plans */}
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            mt: 2,
+                            borderRadius: R.card,
+                            overflow: "hidden",
+                            minWidth: 0,
+                        }}
+                    >
+                        <Box sx={{ p: 2 }}>
+                            <Typography sx={{ fontWeight: 900 }}>
+                                Available plans
+                            </Typography>
+                            <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary", mt: 0.25 }}
+                            >
+                                Pick a plan and upload a payment receipt.
+                            </Typography>
+                        </Box>
+
+                        <Divider />
+
+                        <Box
+                            sx={{
+                                p: 2,
+                                display: "grid",
+                                gridTemplateColumns: {
+                                    xs: "1fr",
+                                    md: "repeat(2, 1fr)",
+                                    xl: "repeat(3, 1fr)",
+                                },
+                                gap: 2,
+                                minWidth: 0,
+                            }}
+                        >
+                            {(loading ? Array.from({ length: 6 }) : plans).map(
+                                (p, idx) =>
+                                    loading ? (
+                                        <Paper
+                                            key={`sk-${idx}`}
+                                            variant="outlined"
+                                            sx={{
+                                                borderRadius: R.card,
+                                                height: 190,
+                                            }}
+                                        />
+                                    ) : (
+                                        <Card
+                                            key={p.id}
+                                            sx={{
+                                                borderRadius: R.card,
+                                                minWidth: 0,
+                                            }}
+                                        >
+                                            <CardContent>
+                                                <Box
+                                                    sx={{
+                                                        display: "flex",
+                                                        justifyContent:
+                                                            "space-between",
+                                                        gap: 2,
+                                                        minWidth: 0,
+                                                    }}
+                                                >
+                                                    <Box sx={{ minWidth: 0 }}>
+                                                        <Typography
+                                                            sx={{
+                                                                fontWeight: 900,
+                                                                fontSize: 18,
+                                                            }}
+                                                            noWrap
+                                                        >
+                                                            {p.name}
+                                                        </Typography>
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{
+                                                                color: "text.secondary",
+                                                                mt: 0.25,
+                                                            }}
+                                                            noWrap
+                                                        >
+                                                            {p.description ||
+                                                                "—"}
+                                                        </Typography>
+                                                    </Box>
+
+                                                    <PillChip
+                                                        label={moneyPKR(
+                                                            p.price
+                                                        )}
+                                                        tone="warn"
+                                                    />
+                                                </Box>
+
+                                                <Divider sx={{ my: 2 }} />
+
+                                                <Box
+                                                    sx={{
+                                                        display: "flex",
+                                                        gap: 1,
+                                                        flexWrap: "wrap",
+                                                    }}
+                                                >
+                                                    <Chip
                                                         size="small"
-                                                        variant={
-                                                            canReupload
-                                                                ? "contained"
-                                                                : "outlined"
-                                                        }
-                                                        startIcon={
-                                                            <UploadOutlinedIcon />
-                                                        }
+                                                        label={`Limit: ${p.borrow_limit}`}
                                                         sx={{
-                                                            borderRadius: 3,
+                                                            borderRadius:
+                                                                R.soft,
+                                                            fontWeight: 900,
                                                         }}
-                                                        disabled={
-                                                            isPendingReceipt ||
-                                                            !canReupload
-                                                        }
+                                                        variant="outlined"
+                                                    />
+                                                    <Chip
+                                                        size="small"
+                                                        label={`Borrow: ${p.borrow_duration_days}d`}
+                                                        sx={{
+                                                            borderRadius:
+                                                                R.soft,
+                                                            fontWeight: 900,
+                                                        }}
+                                                        variant="outlined"
+                                                    />
+                                                    <Chip
+                                                        size="small"
+                                                        label={`Fine/day: ${moneyPKR(
+                                                            p.fine_amount_per_day
+                                                        )}`}
+                                                        sx={{
+                                                            borderRadius:
+                                                                R.soft,
+                                                            fontWeight: 900,
+                                                        }}
+                                                        variant="outlined"
+                                                    />
+                                                    <Chip
+                                                        size="small"
+                                                        label={`Grace: ${p.grace_period_days}d`}
+                                                        sx={{
+                                                            borderRadius:
+                                                                R.soft,
+                                                            fontWeight: 900,
+                                                        }}
+                                                        variant="outlined"
+                                                    />
+                                                </Box>
+
+                                                <Box
+                                                    sx={{
+                                                        display: "flex",
+                                                        justifyContent:
+                                                            "flex-end",
+                                                        mt: 2,
+                                                    }}
+                                                >
+                                                    <Button
+                                                        variant="outlined"
+                                                        sx={{
+                                                            borderRadius: R.btn,
+                                                        }}
                                                         onClick={() =>
-                                                            openDrawerForReupload(
-                                                                s
+                                                            openDrawerForNewOrUpgrade(
+                                                                p.id
                                                             )
                                                         }
                                                     >
-                                                        {canReupload
-                                                            ? "Re-upload"
-                                                            : "Upload"}
+                                                        Select
                                                     </Button>
                                                 </Box>
-                                            </Paper>
-                                        );
-                                    })}
-                                </Stack>
-                            ) : (
-                                <Typography
-                                    variant="body2"
-                                    sx={{ color: "text.secondary" }}
-                                >
-                                    No subscription requests yet.
-                                </Typography>
+                                            </CardContent>
+                                        </Card>
+                                    )
                             )}
-                        </CardContent>
-                    </Card>
-                </Box>
+                        </Box>
+                    </Paper>
 
-                <Paper
-                    variant="outlined"
-                    sx={{ mt: 2, borderRadius: 4, overflow: "hidden" }}
-                >
-                    <Box sx={{ p: 2 }}>
-                        <Typography sx={{ fontWeight: 900 }}>
-                            Available plans
-                        </Typography>
-                        <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary", mt: 0.25 }}
-                        >
-                            Pick a plan and upload a payment receipt.
-                        </Typography>
-                    </Box>
-
-                    <Divider />
-
-                    <Box
-                        sx={{
-                            p: 2,
-                            display: "grid",
-                            gridTemplateColumns: {
-                                xs: "1fr",
-                                md: "repeat(2, 1fr)",
-                                xl: "repeat(3, 1fr)",
+                    {/* Drawer */}
+                    <Drawer
+                        anchor="right"
+                        open={drawerOpen}
+                        onClose={closeDrawer}
+                        PaperProps={{
+                            sx: {
+                                width: { xs: "100%", sm: 520 },
+                                maxWidth: "100vw",
+                                minWidth: 0,
+                                overflowX: "hidden",
+                                borderTopLeftRadius: {
+                                    xs: "0px",
+                                    sm: R.drawer,
+                                },
+                                borderBottomLeftRadius: {
+                                    xs: "0px",
+                                    sm: R.drawer,
+                                },
                             },
-                            gap: 2,
                         }}
                     >
-                        {(loading ? Array.from({ length: 6 }) : plans).map(
-                            (p, idx) =>
-                                loading ? (
-                                    <Paper
-                                        key={`sk-${idx}`}
-                                        variant="outlined"
-                                        sx={{ borderRadius: 4, height: 180 }}
-                                    />
-                                ) : (
-                                    <Card key={p.id} sx={{ borderRadius: 4 }}>
-                                        <CardContent>
-                                            <Box
-                                                sx={{
-                                                    display: "flex",
-                                                    justifyContent:
-                                                        "space-between",
-                                                    gap: 2,
-                                                }}
-                                            >
-                                                <Box sx={{ minWidth: 0 }}>
-                                                    <Typography
-                                                        sx={{
-                                                            fontWeight: 900,
-                                                            fontSize: 18,
-                                                        }}
-                                                        noWrap
-                                                    >
-                                                        {p.name}
-                                                    </Typography>
-                                                    <Typography
-                                                        variant="body2"
-                                                        sx={{
-                                                            color: "text.secondary",
-                                                            mt: 0.25,
-                                                        }}
-                                                        noWrap
-                                                    >
-                                                        {p.description || "—"}
-                                                    </Typography>
-                                                </Box>
-                                                <Chip
-                                                    label={money(p.price)}
-                                                    sx={{
-                                                        borderRadius: 3,
-                                                        fontWeight: 900,
-                                                        backgroundColor:
-                                                            "action.selected",
-                                                    }}
-                                                />
-                                            </Box>
-
-                                            <Divider sx={{ my: 2 }} />
-
-                                            <Box
-                                                sx={{
-                                                    display: "flex",
-                                                    gap: 1,
-                                                    flexWrap: "wrap",
-                                                }}
-                                            >
-                                                <Chip
-                                                    size="small"
-                                                    label={`Limit: ${p.borrow_limit}`}
-                                                    sx={{
-                                                        borderRadius: 2,
-                                                        fontWeight: 900,
-                                                    }}
-                                                    variant="outlined"
-                                                />
-                                                <Chip
-                                                    size="small"
-                                                    label={`Borrow: ${p.borrow_duration_days}d`}
-                                                    sx={{
-                                                        borderRadius: 2,
-                                                        fontWeight: 900,
-                                                    }}
-                                                    variant="outlined"
-                                                />
-                                                <Chip
-                                                    size="small"
-                                                    label={`Fine/day: ${money(
-                                                        p.fine_amount_per_day
-                                                    )}`}
-                                                    sx={{
-                                                        borderRadius: 2,
-                                                        fontWeight: 900,
-                                                    }}
-                                                    variant="outlined"
-                                                />
-                                                <Chip
-                                                    size="small"
-                                                    label={`Grace: ${p.grace_period_days}d`}
-                                                    sx={{
-                                                        borderRadius: 2,
-                                                        fontWeight: 900,
-                                                    }}
-                                                    variant="outlined"
-                                                />
-                                            </Box>
-
-                                            <Box
-                                                sx={{
-                                                    display: "flex",
-                                                    justifyContent: "flex-end",
-                                                    mt: 2,
-                                                }}
-                                            >
-                                                <Button
-                                                    variant="outlined"
-                                                    sx={{ borderRadius: 3 }}
-                                                    onClick={() =>
-                                                        openDrawerForNewOrUpgrade(
-                                                            p.id
-                                                        )
-                                                    }
-                                                >
-                                                    Select
-                                                </Button>
-                                            </Box>
-                                        </CardContent>
-                                    </Card>
-                                )
-                        )}
-                    </Box>
-                </Paper>
-
-                <Drawer
-                    anchor="right"
-                    open={drawerOpen}
-                    onClose={closeDrawer}
-                    PaperProps={{
-                        sx: {
-                            width: { xs: "100%", sm: 520 },
-                            borderTopLeftRadius: { xs: 0, sm: 24 },
-                            borderBottomLeftRadius: { xs: 0, sm: 24 },
-                        },
-                    }}
-                >
-                    <Box
-                        sx={{
-                            p: 2.25,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                        }}
-                    >
-                        <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                            {drawerMode === "reupload"
-                                ? "Re-upload receipt"
-                                : drawerMode === "upgrade"
-                                ? "Upgrade membership"
-                                : "Request membership"}
-                        </Typography>
-                        <IconButton onClick={closeDrawer} aria-label="close">
-                            <CloseOutlinedIcon />
-                        </IconButton>
-                    </Box>
-
-                    <Divider />
-
-                    <Box sx={{ p: 2.25, display: "grid", gap: 2 }}>
-                        {drawerMode !== "reupload" ? (
-                            <TextField
-                                select
-                                label="Plan"
-                                value={selectedPlanId}
-                                onChange={(e) =>
-                                    setSelectedPlanId(e.target.value)
-                                }
-                                fullWidth
+                        <Box
+                            sx={{
+                                p: 2.25,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 2,
+                                minWidth: 0,
+                            }}
+                        >
+                            <Typography
+                                variant="h6"
+                                sx={{ fontWeight: 900 }}
+                                noWrap
                             >
-                                <MenuItem value="" disabled>
-                                    Select a plan…
-                                </MenuItem>
-                                {plans.map((p) => (
-                                    <MenuItem key={p.id} value={p.id}>
-                                        {p.name} — {money(p.price)}
+                                {drawerMode === "reupload"
+                                    ? "Re-upload receipt"
+                                    : drawerMode === "upgrade"
+                                    ? "Upgrade membership"
+                                    : "Request membership"}
+                            </Typography>
+                            <IconButton
+                                onClick={closeDrawer}
+                                aria-label="close"
+                            >
+                                <CloseOutlinedIcon />
+                            </IconButton>
+                        </Box>
+
+                        <Divider />
+
+                        <Box
+                            sx={{
+                                p: 2.25,
+                                display: "grid",
+                                gap: 2,
+                                minWidth: 0,
+                            }}
+                        >
+                            {drawerMode !== "reupload" ? (
+                                <TextField
+                                    select
+                                    label="Plan"
+                                    value={selectedPlanId}
+                                    onChange={(e) =>
+                                        setSelectedPlanId(e.target.value)
+                                    }
+                                    fullWidth
+                                >
+                                    <MenuItem value="" disabled>
+                                        Select a plan…
                                     </MenuItem>
-                                ))}
-                            </TextField>
-                        ) : (
+                                    {plans.map((p) => (
+                                        <MenuItem key={p.id} value={p.id}>
+                                            {p.name} — {moneyPKR(p.price)}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            ) : (
+                                <Paper
+                                    variant="outlined"
+                                    sx={{ borderRadius: R.card, p: 2 }}
+                                >
+                                    <Typography sx={{ fontWeight: 900 }} noWrap>
+                                        {targetSubscription?.plan_name ||
+                                            "Plan"}
+                                    </Typography>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            color: "text.secondary",
+                                            mt: 0.25,
+                                        }}
+                                        noWrap
+                                    >
+                                        Subscription: {targetSubscription?.id}
+                                    </Typography>
+                                </Paper>
+                            )}
+
                             <Paper
                                 variant="outlined"
-                                sx={{ borderRadius: 4, p: 2 }}
+                                sx={{ borderRadius: R.card, p: 2 }}
                             >
                                 <Typography sx={{ fontWeight: 900 }}>
-                                    {targetSubscription?.plan_name || "Plan"}
+                                    Validity (temporary rule)
                                 </Typography>
                                 <Typography
                                     variant="body2"
                                     sx={{ color: "text.secondary", mt: 0.25 }}
                                 >
-                                    Subscription: {targetSubscription?.id}
+                                    Your schema doesn’t store plan duration yet,
+                                    so we create subscriptions for{" "}
+                                    <b>{DEFAULT_MEMBERSHIP_DAYS} days</b>.
                                 </Typography>
+                                <Divider sx={{ my: 1.5 }} />
+                                <Chip
+                                    label={`End date: ${endDate}`}
+                                    sx={{
+                                        borderRadius: R.chip,
+                                        fontWeight: 900,
+                                    }}
+                                    variant="outlined"
+                                />
                             </Paper>
-                        )}
 
-                        <Paper
-                            variant="outlined"
-                            sx={{ borderRadius: 4, p: 2 }}
-                        >
-                            <Typography sx={{ fontWeight: 900 }}>
-                                Validity (temporary rule)
-                            </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary", mt: 0.25 }}
-                            >
-                                Your schema doesn’t store plan duration yet, so
-                                we create subscriptions for{" "}
-                                <b>{DEFAULT_MEMBERSHIP_DAYS} days</b>.
-                            </Typography>
-
-                            <Divider sx={{ my: 1.5 }} />
-
-                            <Chip
-                                label={`End date: ${endDate}`}
-                                sx={{ borderRadius: 3, fontWeight: 900 }}
+                            <Paper
                                 variant="outlined"
-                            />
-                        </Paper>
-
-                        <Paper
-                            variant="outlined"
-                            sx={{ borderRadius: 4, p: 2 }}
-                        >
-                            <Typography sx={{ fontWeight: 900 }}>
-                                Receipt upload
-                            </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary", mt: 0.25 }}
+                                sx={{ borderRadius: R.card, p: 2 }}
                             >
-                                Upload a receipt. Staff will approve it.
-                            </Typography>
+                                <Typography sx={{ fontWeight: 900 }}>
+                                    Receipt upload
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    sx={{ color: "text.secondary", mt: 0.25 }}
+                                >
+                                    Upload a receipt. Staff will approve it.
+                                </Typography>
 
-                            <Divider sx={{ my: 1.5 }} />
+                                <Divider sx={{ my: 1.5 }} />
 
-                            <Typography
-                                variant="caption"
-                                sx={{
-                                    color: "text.secondary",
-                                    display: "block",
-                                    mb: 1,
-                                }}
-                            >
-                                {fileName || "No file selected"}
-                            </Typography>
+                                <Typography
+                                    variant="caption"
+                                    sx={{
+                                        color: "text.secondary",
+                                        display: "block",
+                                        mb: 1,
+                                        wordBreak: "break-word",
+                                    }}
+                                >
+                                    {fileName || "No file selected"}
+                                </Typography>
+
+                                <Box
+                                    sx={{
+                                        display: "flex",
+                                        gap: 1,
+                                        flexWrap: "wrap",
+                                    }}
+                                >
+                                    <Button
+                                        component="label"
+                                        variant="contained"
+                                        startIcon={<UploadOutlinedIcon />}
+                                        sx={{ borderRadius: R.btn }}
+                                        disabled={submitting}
+                                    >
+                                        Choose file
+                                        <input
+                                            hidden
+                                            type="file"
+                                            accept=".png,.jpg,.jpeg,.webp,.pdf"
+                                            onChange={(e) => {
+                                                const f = e.target.files?.[0];
+                                                if (!f) return;
+                                                setFile(f);
+                                                setFileName(f.name);
+                                            }}
+                                        />
+                                    </Button>
+
+                                    <Button
+                                        variant="outlined"
+                                        sx={{ borderRadius: R.btn }}
+                                        onClick={() => {
+                                            setFile(null);
+                                            setFileName("");
+                                        }}
+                                        disabled={submitting}
+                                    >
+                                        Clear
+                                    </Button>
+                                </Box>
+                            </Paper>
 
                             <Box
                                 sx={{
                                     display: "flex",
                                     gap: 1,
-                                    flexWrap: "wrap",
+                                    justifyContent: "flex-end",
                                 }}
                             >
                                 <Button
-                                    component="label"
-                                    variant="contained"
-                                    startIcon={<UploadOutlinedIcon />}
-                                    sx={{ borderRadius: 3 }}
-                                    disabled={submitting}
-                                >
-                                    Choose file
-                                    <input
-                                        hidden
-                                        type="file"
-                                        accept=".png,.jpg,.jpeg,.webp,.pdf"
-                                        onChange={(e) => {
-                                            const f = e.target.files?.[0];
-                                            if (!f) return;
-                                            setFile(f);
-                                            setFileName(f.name);
-                                        }}
-                                    />
-                                </Button>
-
-                                <Button
                                     variant="outlined"
-                                    sx={{ borderRadius: 3 }}
-                                    onClick={() => {
-                                        setFile(null);
-                                        setFileName("");
-                                    }}
+                                    sx={{ borderRadius: R.btn }}
+                                    onClick={closeDrawer}
                                     disabled={submitting}
                                 >
-                                    Clear
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    sx={{ borderRadius: R.btn }}
+                                    onClick={submit}
+                                    disabled={!canSubmit}
+                                >
+                                    {submitting
+                                        ? "Submitting…"
+                                        : "Submit request"}
                                 </Button>
                             </Box>
-                        </Paper>
-
-                        <Box
-                            sx={{
-                                display: "flex",
-                                gap: 1,
-                                justifyContent: "flex-end",
-                            }}
-                        >
-                            <Button
-                                variant="outlined"
-                                sx={{ borderRadius: 3 }}
-                                onClick={closeDrawer}
-                                disabled={submitting}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                variant="contained"
-                                sx={{ borderRadius: 3 }}
-                                onClick={submit}
-                                disabled={!canSubmit}
-                            >
-                                {submitting ? "Submitting…" : "Submit"}
-                            </Button>
                         </Box>
-                    </Box>
-                </Drawer>
+                    </Drawer>
+                </Box>
             </AppShell>
         </RoleGuard>
     );

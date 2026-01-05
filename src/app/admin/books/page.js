@@ -29,6 +29,14 @@ import { ROLES } from "../../../lib/roles";
 
 import { createClient } from "@/lib/supabase/client";
 
+/** ✅ Use explicit px radii to avoid “weirdly round” look */
+const R = {
+    card: "14px",
+    soft: "12px",
+    btn: "12px",
+    chip: "999px",
+};
+
 function StockChip({ available }) {
     const ok = Number(available || 0) > 0;
     return (
@@ -36,7 +44,7 @@ function StockChip({ available }) {
             size="small"
             label={ok ? `Available ${available}` : "Out of stock"}
             sx={{
-                borderRadius: 2,
+                borderRadius: R.chip,
                 fontWeight: 900,
                 backgroundColor: ok
                     ? "rgba(46,204,113,0.15)"
@@ -61,7 +69,7 @@ function normalizeBook(b) {
         stockAvailable: Number(b?.stockAvailable ?? b?.stock_available ?? 0),
         coverImageUrl: b?.coverImageUrl || b?.cover_image_url || "",
         coverFile: null,
-        authors: Array.isArray(b?.authors) ? b.authors : [], // array of strings
+        authors: Array.isArray(b?.authors) ? b.authors : [],
     };
 }
 
@@ -101,11 +109,10 @@ async function uploadCoverIfNeeded({ supabase, file }) {
 // --- Authors helpers (no authors page needed) ---
 async function upsertAuthorsByName(supabase, names) {
     const clean = [
-        ...new Set(names.map((n) => String(n).trim()).filter(Boolean)),
+        ...new Set((names || []).map((n) => String(n).trim()).filter(Boolean)),
     ];
     if (clean.length === 0) return [];
 
-    // Check which exist
     const { data: existing, error: exErr } = await supabase
         .from("authors")
         .select("id, full_name")
@@ -114,11 +121,10 @@ async function upsertAuthorsByName(supabase, names) {
     if (exErr) throw exErr;
 
     const existingMap = new Map(
-        (existing || []).map((a) => [a.full_name.toLowerCase(), a])
+        (existing || []).map((a) => [String(a.full_name).toLowerCase(), a])
     );
     const toInsert = clean.filter((n) => !existingMap.has(n.toLowerCase()));
 
-    // Insert missing
     if (toInsert.length > 0) {
         const { data: inserted, error: insErr } = await supabase
             .from("authors")
@@ -128,7 +134,7 @@ async function upsertAuthorsByName(supabase, names) {
         if (insErr) throw insErr;
 
         (inserted || []).forEach((a) =>
-            existingMap.set(a.full_name.toLowerCase(), a)
+            existingMap.set(String(a.full_name).toLowerCase(), a)
         );
     }
 
@@ -136,7 +142,6 @@ async function upsertAuthorsByName(supabase, names) {
 }
 
 async function setBookAuthors(supabase, bookId, authorIds) {
-    // Remove all existing links, then insert new ones
     const { error: delErr } = await supabase
         .from("book_authors")
         .delete()
@@ -221,8 +226,8 @@ export default function AdminBooksPage() {
 
     const filtered = React.useMemo(() => {
         const query = q.trim().toLowerCase();
-        if (!query) return rows;
-        return rows.filter((b) => {
+        if (!query) return rows || [];
+        return (rows || []).filter((b) => {
             const authorsStr = (b.authors || []).join(", ").toLowerCase();
             return (
                 String(b.title || "")
@@ -231,7 +236,9 @@ export default function AdminBooksPage() {
                 String(b.genre || "")
                     .toLowerCase()
                     .includes(query) ||
-                String(b.isbn || "").includes(query) ||
+                String(b.isbn || "")
+                    .toLowerCase()
+                    .includes(query) ||
                 authorsStr.includes(query)
             );
         });
@@ -312,14 +319,12 @@ export default function AdminBooksPage() {
                 savedBook = data;
             }
 
-            // --- Save authors links ---
             const names = Array.isArray(editing.authors) ? editing.authors : [];
             const authorRows = await upsertAuthorsByName(supabase, names);
             const authorIds = authorRows.map((a) => a.id);
 
             await setBookAuthors(supabase, savedBook.id, authorIds);
 
-            // Update local UI state
             const final = normalizeBook({
                 ...savedBook,
                 authors: authorRows.map((a) => a.full_name),
@@ -345,8 +350,6 @@ export default function AdminBooksPage() {
         setSaving(true);
 
         try {
-            // remove links first (FK cascade exists for book_authors due to book_id ON DELETE CASCADE,
-            // but deleting explicitly is fine)
             await supabase
                 .from("book_authors")
                 .delete()
@@ -370,195 +373,277 @@ export default function AdminBooksPage() {
     return (
         <RoleGuard allowedRoles={[ROLES.ADMIN]}>
             <AppShell title="Admin Books">
-                <PageHeader
-                    title="Books (Admin)"
-                    subtitle="Create and manage books, authors, stock and covers."
-                    right={
-                        <Button
-                            variant="contained"
-                            startIcon={<AddOutlinedIcon />}
-                            sx={{ borderRadius: 3 }}
-                            onClick={openCreate}
-                            disabled={loading}
-                        >
-                            New Book
-                        </Button>
-                    }
-                />
-
-                {error ? (
-                    <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>
-                        {error}
-                    </Alert>
-                ) : null}
-
-                <Paper
-                    variant="outlined"
-                    sx={{
-                        p: 1.25,
-                        borderRadius: 4,
-                        display: "flex",
-                        gap: 1,
-                        flexWrap: "wrap",
-                        alignItems: "center",
-                    }}
-                >
-                    <TextField
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                        placeholder="Search title / authors / genre / ISBN…"
-                        sx={{ width: { xs: "100%", sm: 520 } }}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon fontSize="small" />
-                                </InputAdornment>
-                            ),
-                        }}
-                    />
-                    <Box sx={{ flex: 1 }} />
-                    <Chip
-                        label={
-                            loading ? "Loading…" : `${filtered.length} item(s)`
+                {/* ✅ stop horizontal overflow + keep consistent “not too round” UI */}
+                <Box sx={{ minWidth: 0, overflowX: "hidden" }}>
+                    <PageHeader
+                        title="Books (Admin)"
+                        subtitle="Create and manage books, authors, stock and covers."
+                        right={
+                            <Button
+                                variant="contained"
+                                startIcon={<AddOutlinedIcon />}
+                                sx={{ borderRadius: R.btn }}
+                                onClick={openCreate}
+                                disabled={loading}
+                            >
+                                New Book
+                            </Button>
                         }
-                        sx={{ borderRadius: 3, fontWeight: 900 }}
-                        variant="outlined"
                     />
-                </Paper>
 
-                <Paper
-                    variant="outlined"
-                    sx={{ mt: 2, borderRadius: 4, overflow: "hidden" }}
-                >
-                    <Box sx={{ p: 2 }}>
-                        <Typography sx={{ fontWeight: 900 }}>Books</Typography>
-                        <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary", mt: 0.25 }}
+                    {error ? (
+                        <Alert
+                            severity="error"
+                            sx={{ mb: 2, borderRadius: R.soft }}
                         >
-                            Supabase: books + authors + book_authors +
-                            book-covers storage
-                        </Typography>
-                    </Box>
+                            {error}
+                        </Alert>
+                    ) : null}
 
-                    <Divider />
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            p: 1.25,
+                            borderRadius: R.card,
+                            display: "flex",
+                            gap: 1,
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            minWidth: 0,
+                        }}
+                    >
+                        <TextField
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            placeholder="Search title / authors / genre / ISBN…"
+                            sx={{ width: { xs: "100%", sm: 520 }, minWidth: 0 }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon fontSize="small" />
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
+                        <Box sx={{ flex: 1, minWidth: 0 }} />
+                        <Chip
+                            label={
+                                loading
+                                    ? "Loading…"
+                                    : `${filtered.length} item(s)`
+                            }
+                            sx={{ borderRadius: R.chip, fontWeight: 900 }}
+                            variant="outlined"
+                        />
+                    </Paper>
 
-                    <Box sx={{ overflowX: "auto" }}>
-                        <Table size="small" sx={{ minWidth: 1100 }}>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Title</TableCell>
-                                    <TableCell>Authors</TableCell>
-                                    <TableCell>ISBN</TableCell>
-                                    <TableCell>Genre</TableCell>
-                                    <TableCell>Stock</TableCell>
-                                    <TableCell align="right">Action</TableCell>
-                                </TableRow>
-                            </TableHead>
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            mt: 2,
+                            borderRadius: R.card,
+                            overflow: "hidden",
+                            minWidth: 0,
+                        }}
+                    >
+                        <Box sx={{ p: 2 }}>
+                            <Typography sx={{ fontWeight: 900 }}>
+                                Books
+                            </Typography>
+                            <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary", mt: 0.25 }}
+                            >
+                                Supabase: books + authors + book_authors +
+                                book-covers storage
+                            </Typography>
+                        </Box>
 
-                            <TableBody>
-                                {filtered.map((b) => (
-                                    <TableRow key={b.id} hover>
-                                        <TableCell>
-                                            <Typography
-                                                sx={{ fontWeight: 900 }}
-                                            >
-                                                {b.title}
-                                            </Typography>
-                                            <Typography
-                                                variant="body2"
-                                                sx={{ color: "text.secondary" }}
-                                            >
-                                                {b.id}
-                                            </Typography>
-                                        </TableCell>
+                        <Divider />
 
-                                        <TableCell>
-                                            {(b.authors || []).join(", ") ||
-                                                "—"}
-                                        </TableCell>
-
-                                        <TableCell
-                                            sx={{ fontFamily: "monospace" }}
-                                        >
-                                            {b.isbn || "—"}
-                                        </TableCell>
-                                        <TableCell>{b.genre || "—"}</TableCell>
-
-                                        <TableCell>
-                                            <StockChip
-                                                available={b.stockAvailable}
-                                            />
-                                        </TableCell>
-
+                        <Box sx={{ width: "100%", overflowX: "auto" }}>
+                            <Table
+                                size="small"
+                                sx={{
+                                    minWidth: 1100,
+                                    "& th": {
+                                        whiteSpace: "nowrap",
+                                        fontWeight: 900,
+                                    },
+                                }}
+                            >
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell>Title</TableCell>
+                                        <TableCell>Authors</TableCell>
+                                        <TableCell>ISBN</TableCell>
+                                        <TableCell>Genre</TableCell>
+                                        <TableCell>Stock</TableCell>
                                         <TableCell align="right">
-                                            <Box
-                                                sx={{
-                                                    display: "flex",
-                                                    gap: 1,
-                                                    justifyContent: "flex-end",
-                                                    flexWrap: "wrap",
-                                                }}
-                                            >
-                                                <Button
-                                                    component={Link}
-                                                    href={`/books/${b.id}`}
-                                                    size="small"
-                                                    variant="outlined"
-                                                    sx={{ borderRadius: 3 }}
-                                                >
-                                                    View
-                                                </Button>
-                                                <Button
-                                                    size="small"
-                                                    variant="contained"
-                                                    sx={{ borderRadius: 3 }}
-                                                    onClick={() => openEdit(b)}
-                                                >
-                                                    Edit
-                                                </Button>
-                                            </Box>
+                                            Action
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                </TableHead>
 
-                                {!loading && filtered.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} sx={{ py: 6 }}>
-                                            <Box sx={{ textAlign: "center" }}>
+                                <TableBody>
+                                    {filtered.map((b) => (
+                                        <TableRow key={b.id} hover>
+                                            <TableCell
+                                                sx={{
+                                                    minWidth: 340,
+                                                    maxWidth: 520,
+                                                }}
+                                            >
                                                 <Typography
                                                     sx={{ fontWeight: 900 }}
+                                                    noWrap
+                                                    title={b.title || ""}
                                                 >
-                                                    No books found
+                                                    {b.title || "—"}
                                                 </Typography>
                                                 <Typography
                                                     variant="body2"
                                                     sx={{
                                                         color: "text.secondary",
-                                                        mt: 0.5,
+                                                        fontFamily: "monospace",
+                                                        overflow: "hidden",
+                                                        textOverflow:
+                                                            "ellipsis",
+                                                        whiteSpace: "nowrap",
+                                                    }}
+                                                    title={b.id || ""}
+                                                >
+                                                    {b.id || "—"}
+                                                </Typography>
+                                            </TableCell>
+
+                                            <TableCell
+                                                sx={{
+                                                    minWidth: 260,
+                                                    maxWidth: 360,
+                                                }}
+                                            >
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                        overflow: "hidden",
+                                                        textOverflow:
+                                                            "ellipsis",
+                                                        whiteSpace: "nowrap",
+                                                    }}
+                                                    title={(
+                                                        b.authors || []
+                                                    ).join(", ")}
+                                                >
+                                                    {(b.authors || []).join(
+                                                        ", "
+                                                    ) || "—"}
+                                                </Typography>
+                                            </TableCell>
+
+                                            <TableCell
+                                                sx={{
+                                                    fontFamily: "monospace",
+                                                    whiteSpace: "nowrap",
+                                                }}
+                                            >
+                                                {b.isbn || "—"}
+                                            </TableCell>
+
+                                            <TableCell
+                                                sx={{ whiteSpace: "nowrap" }}
+                                            >
+                                                {b.genre || "—"}
+                                            </TableCell>
+
+                                            <TableCell>
+                                                <StockChip
+                                                    available={b.stockAvailable}
+                                                />
+                                            </TableCell>
+
+                                            <TableCell align="right">
+                                                <Box
+                                                    sx={{
+                                                        display: "flex",
+                                                        gap: 1,
+                                                        justifyContent:
+                                                            "flex-end",
+                                                        flexWrap: "wrap",
                                                     }}
                                                 >
-                                                    Try another search query.
-                                                </Typography>
-                                            </Box>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : null}
-                            </TableBody>
-                        </Table>
-                    </Box>
-                </Paper>
+                                                    <Button
+                                                        component={Link}
+                                                        href={`/books/${b.id}`}
+                                                        size="small"
+                                                        variant="outlined"
+                                                        sx={{
+                                                            borderRadius: R.btn,
+                                                        }}
+                                                    >
+                                                        View
+                                                    </Button>
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        sx={{
+                                                            borderRadius: R.btn,
+                                                        }}
+                                                        onClick={() =>
+                                                            openEdit(b)
+                                                        }
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
 
-                <BookEditDrawer
-                    open={open}
-                    onClose={() => setOpen(false)}
-                    value={editing || {}}
-                    onChange={setEditing}
-                    onSave={save}
-                    onDelete={del}
-                    showDelete={Boolean(editing?.id)}
-                    saving={saving}
-                />
+                                    {!loading && filtered.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={6}
+                                                sx={{ py: 6 }}
+                                            >
+                                                <Box
+                                                    sx={{ textAlign: "center" }}
+                                                >
+                                                    <Typography
+                                                        sx={{ fontWeight: 900 }}
+                                                    >
+                                                        No books found
+                                                    </Typography>
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                            color: "text.secondary",
+                                                            mt: 0.5,
+                                                        }}
+                                                    >
+                                                        Try another search
+                                                        query.
+                                                    </Typography>
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                </TableBody>
+                            </Table>
+                        </Box>
+                    </Paper>
+
+                    <BookEditDrawer
+                        open={open}
+                        onClose={() => setOpen(false)}
+                        value={editing || {}}
+                        onChange={setEditing}
+                        onSave={save}
+                        onDelete={del}
+                        showDelete={Boolean(editing?.id)}
+                        saving={saving}
+                    />
+                </Box>
             </AppShell>
         </RoleGuard>
     );

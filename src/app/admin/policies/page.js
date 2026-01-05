@@ -29,6 +29,20 @@ import RoleGuard from "@/components/RoleGuard";
 import { ROLES } from "../../../lib/roles";
 import { useAuth } from "@/context/AuthContext";
 
+/**
+ * IMPORTANT:
+ * MUI's `sx={{ borderRadius: 4 }}` is NOT 4px — it's theme-multiplied (often 16px),
+ * which is why things look "weirdly round".
+ * Use explicit px strings to control it.
+ */
+const R = {
+    paper: "10px",
+    soft: "8px",
+    btn: "10px",
+    chip: "10px",
+    pill: "999px",
+};
+
 function formatDateTime(ts) {
     if (!ts) return "—";
     const d = new Date(ts);
@@ -43,7 +57,7 @@ function StatusChip({ isActive }) {
             size="small"
             label={label}
             sx={{
-                borderRadius: 2,
+                borderRadius: R.chip,
                 fontWeight: 900,
                 backgroundColor: isActive
                     ? "rgba(46,204,113,0.15)"
@@ -99,7 +113,7 @@ export default function AdminPoliciesPage() {
     const filtered = React.useMemo(() => {
         const query = q.trim().toLowerCase();
 
-        return rows.filter((p) => {
+        return (rows || []).filter((p) => {
             const matchesQuery =
                 !query ||
                 String(p.title || "")
@@ -143,6 +157,11 @@ export default function AdminPoliciesPage() {
         setOpen(true);
     };
 
+    const closeDrawer = () => {
+        setOpen(false);
+        setEditing(null);
+    };
+
     const save = async () => {
         if (!supabase) return;
 
@@ -150,7 +169,9 @@ export default function AdminPoliciesPage() {
         const category = String(editing?.category || "").trim();
         const value = String(editing?.value || "").trim();
 
-        if (!title || !category || !value) return;
+        if (!title) return alert("Title is required");
+        if (!category) return alert("Category is required");
+        if (!value) return alert("Policy content is required");
 
         try {
             // Create
@@ -170,7 +191,8 @@ export default function AdminPoliciesPage() {
 
                 if (insErr) throw insErr;
 
-                setRows((prev) => [data, ...prev]);
+                setRows((prev) => [data, ...(prev || [])]);
+                closeDrawer();
                 return;
             }
 
@@ -186,7 +208,10 @@ export default function AdminPoliciesPage() {
 
             if (upErr) throw upErr;
 
-            setRows((prev) => prev.map((x) => (x.id === up.id ? up : x)));
+            setRows((prev) =>
+                (prev || []).map((x) => (x.id === data.id ? data : x))
+            );
+            closeDrawer();
         } catch (e) {
             alert(e?.message || "Save failed");
         }
@@ -205,6 +230,7 @@ export default function AdminPoliciesPage() {
 
             if (dErr) throw dErr;
 
+            closeDrawer();
             // reload (record still exists but now archived)
             await load();
         } catch (e) {
@@ -226,7 +252,9 @@ export default function AdminPoliciesPage() {
 
             if (upErr) throw upErr;
 
-            setRows((prev) => prev.map((x) => (x.id === id ? data : x)));
+            setRows((prev) =>
+                (prev || []).map((x) => (x.id === id ? data : x))
+            );
         } catch (e) {
             alert(e?.message || "Unarchive failed");
         }
@@ -242,7 +270,7 @@ export default function AdminPoliciesPage() {
                         <Button
                             variant="contained"
                             startIcon={<AddOutlinedIcon />}
-                            sx={{ borderRadius: 3 }}
+                            sx={{ borderRadius: R.btn }}
                             onClick={openCreate}
                             disabled={loading}
                         >
@@ -252,7 +280,10 @@ export default function AdminPoliciesPage() {
                 />
 
                 {error ? (
-                    <Alert severity="error" sx={{ mt: 2 }}>
+                    <Alert
+                        severity="error"
+                        sx={{ mt: 2, borderRadius: R.soft }}
+                    >
                         {error}
                     </Alert>
                 ) : null}
@@ -262,18 +293,24 @@ export default function AdminPoliciesPage() {
                     sx={{
                         mt: 2,
                         p: 1.25,
-                        borderRadius: 4,
+                        borderRadius: R.paper,
                         display: "flex",
                         gap: 1,
                         flexWrap: "wrap",
                         alignItems: "center",
+                        minWidth: 0,
                     }}
                 >
                     <TextField
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
                         placeholder="Search title / category / content…"
-                        sx={{ width: { xs: "100%", sm: 520 } }}
+                        sx={{
+                            width: { xs: "100%", sm: 520 },
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: R.soft,
+                            },
+                        }}
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
@@ -283,14 +320,19 @@ export default function AdminPoliciesPage() {
                         }}
                     />
 
-                    <Box sx={{ flex: 1 }} />
+                    <Box sx={{ flex: 1, minWidth: 0 }} />
 
                     <TextField
                         select
                         label="Status"
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
-                        sx={{ width: { xs: "100%", sm: 200 } }}
+                        sx={{
+                            width: { xs: "100%", sm: 200 },
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: R.soft,
+                            },
+                        }}
                     >
                         {["Active", "Archived", "All"].map((s) => (
                             <MenuItem key={s} value={s}>
@@ -302,14 +344,14 @@ export default function AdminPoliciesPage() {
                     <Chip
                         icon={<GavelOutlinedIcon />}
                         label={`${loading ? "…" : filtered.length} item(s)`}
-                        sx={{ borderRadius: 3, fontWeight: 900 }}
+                        sx={{ borderRadius: R.pill, fontWeight: 900 }}
                         variant="outlined"
                     />
                 </Paper>
 
                 <Paper
                     variant="outlined"
-                    sx={{ mt: 2, borderRadius: 4, overflow: "hidden" }}
+                    sx={{ mt: 2, borderRadius: R.paper, overflow: "hidden" }}
                 >
                     <Box sx={{ p: 2 }}>
                         <Typography sx={{ fontWeight: 900 }}>
@@ -326,7 +368,14 @@ export default function AdminPoliciesPage() {
                     <Divider />
 
                     <Box sx={{ overflowX: "auto" }}>
-                        <Table size="small" sx={{ minWidth: 1100 }}>
+                        <Table
+                            size="small"
+                            sx={{
+                                minWidth: 1100,
+                                "& th": { fontWeight: 900 },
+                                "& td": { verticalAlign: "middle" },
+                            }}
+                        >
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Title</TableCell>
@@ -361,6 +410,7 @@ export default function AdminPoliciesPage() {
                                             const isActive = Boolean(
                                                 p.is_active
                                             );
+
                                             return (
                                                 <TableRow key={p.id} hover>
                                                     <TableCell>
@@ -387,7 +437,8 @@ export default function AdminPoliciesPage() {
                                                             size="small"
                                                             label={p.category}
                                                             sx={{
-                                                                borderRadius: 2,
+                                                                borderRadius:
+                                                                    R.chip,
                                                                 fontWeight: 900,
                                                             }}
                                                         />
@@ -437,7 +488,8 @@ export default function AdminPoliciesPage() {
                                                                     size="small"
                                                                     variant="outlined"
                                                                     sx={{
-                                                                        borderRadius: 3,
+                                                                        borderRadius:
+                                                                            R.btn,
                                                                     }}
                                                                     onClick={() =>
                                                                         unarchive(
@@ -453,7 +505,8 @@ export default function AdminPoliciesPage() {
                                                                 size="small"
                                                                 variant="contained"
                                                                 sx={{
-                                                                    borderRadius: 3,
+                                                                    borderRadius:
+                                                                        R.btn,
                                                                 }}
                                                                 onClick={() =>
                                                                     openEdit(p)
@@ -509,7 +562,7 @@ export default function AdminPoliciesPage() {
 
                 <AdminEditDrawer
                     open={open}
-                    onClose={() => setOpen(false)}
+                    onClose={closeDrawer}
                     title={editing?.id ? "Edit Policy" : "Create Policy"}
                     value={editing || {}}
                     onChange={setEditing}

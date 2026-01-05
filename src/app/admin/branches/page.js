@@ -36,10 +36,18 @@ const DAYS = [
     "Sunday",
 ];
 
+/** ✅ Use explicit px radii so it doesn't become “weirdly round” via theme units */
+const R = {
+    paper: 14,
+    card: 14,
+    soft: 12,
+    btn: 12,
+    chip: 999,
+};
+
 function toHHMM(t) {
     if (!t) return "";
-    // Postgres time can come as "HH:MM:SS" or "HH:MM"
-    return String(t).slice(0, 5);
+    return String(t).slice(0, 5); // "HH:MM:SS" -> "HH:MM"
 }
 
 function buildEmptyTiming(branch) {
@@ -57,9 +65,6 @@ function buildEmptyTiming(branch) {
 }
 
 function groupOverrides(rows) {
-    // Rows are expanded across weekdays (we save that way),
-    // so we group them back into a single UI override by:
-    // start_date, end_date, is_closed, open_time, close_time
     const map = new Map();
 
     for (const r of rows) {
@@ -82,13 +87,25 @@ function groupOverrides(rows) {
                 isClosed: Boolean(r.is_closed),
                 open: toHHMM(r.open_time),
                 close: toHHMM(r.close_time),
-                // NOTE: schema has no note column; UI-only
                 note: "",
             });
         }
     }
 
     return Array.from(map.values());
+}
+
+function isoDate(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+}
+
+function addDaysISO(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return isoDate(d);
 }
 
 export default function AdminBranchesPage() {
@@ -99,10 +116,9 @@ export default function AdminBranchesPage() {
     const [branchesError, setBranchesError] = React.useState("");
 
     const [filterText, setFilterText] = React.useState("");
-
     const [activeBranchId, setActiveBranchId] = React.useState("");
 
-    // Map branchId -> { branchId, branchName, weekly, overrides }
+    // branchId -> { branchId, branchName, weekly, overrides }
     const [timingsByBranch, setTimingsByBranch] = React.useState({});
     const [timingsLoading, setTimingsLoading] = React.useState(false);
     const [timingsError, setTimingsError] = React.useState("");
@@ -146,7 +162,6 @@ export default function AdminBranchesPage() {
         setBranchesLoading(true);
         setBranchesError("");
 
-        let alive = true;
         try {
             const { data, error } = await supabase
                 .from("library_branches")
@@ -154,36 +169,29 @@ export default function AdminBranchesPage() {
                 .order("name", { ascending: true });
 
             if (error) throw error;
-            if (!alive) return;
 
             setBranches(data || []);
 
-            // Set default active branch once
+            // default active branch once
             if (!activeBranchId && (data || []).length) {
                 setActiveBranchId(data[0].id);
             }
         } catch (e) {
             setBranchesError(e?.message || "Failed to load branches");
         } finally {
-            if (alive) setBranchesLoading(false);
+            setBranchesLoading(false);
         }
-
-        return () => {
-            alive = false;
-        };
     }, [supabase, activeBranchId]);
 
     const loadTimingsForBranch = React.useCallback(
         async (branchId, branchName, { force = false } = {}) => {
             if (!supabase || !branchId) return;
 
-            // Don’t refetch if we already have it (unless forced)
             if (!force && timingsByBranch[branchId]) return;
 
             setTimingsLoading(true);
             setTimingsError("");
 
-            let alive = true;
             try {
                 const { data, error } = await supabase
                     .from("timings")
@@ -193,10 +201,8 @@ export default function AdminBranchesPage() {
                     .eq("branch_id", branchId);
 
                 if (error) throw error;
-                if (!alive) return;
 
                 const rows = data || [];
-
                 const weeklyRows = rows.filter(
                     (r) => !r.start_date && !r.end_date
                 );
@@ -230,12 +236,8 @@ export default function AdminBranchesPage() {
             } catch (e) {
                 setTimingsError(e?.message || "Failed to load timings");
             } finally {
-                if (alive) setTimingsLoading(false);
+                setTimingsLoading(false);
             }
-
-            return () => {
-                alive = false;
-            };
         },
         [supabase, timingsByBranch]
     );
@@ -252,6 +254,7 @@ export default function AdminBranchesPage() {
     }, [activeBranchId, activeBranch, loadTimingsForBranch]);
 
     const handleAddBranch = async () => {
+        if (!supabase) return;
         const name = window.prompt("Branch name?");
         if (!name) return;
 
@@ -269,6 +272,12 @@ export default function AdminBranchesPage() {
             setBranches((prev) => [data, ...prev]);
             setActiveBranchId(data.id);
             setDirty(false);
+
+            // seed empty timings in memory so editor isn't blank
+            setTimingsByBranch((prev) => ({
+                ...prev,
+                [data.id]: buildEmptyTiming(data),
+            }));
         } catch (e) {
             alert(e?.message || "Failed to add branch");
         }
@@ -282,8 +291,6 @@ export default function AdminBranchesPage() {
         setTimingsError("");
 
         try {
-            // Strategy: delete all timings for the branch, then insert weekly + override rows fresh.
-            // (No unique constraints to safely upsert without schema changes.)
             const { error: delErr } = await supabase
                 .from("timings")
                 .delete()
@@ -301,9 +308,8 @@ export default function AdminBranchesPage() {
                 close_time: row.isClosed ? null : row.close || null,
             }));
 
-            // Overrides apply to ALL weekdays across the date range (due to schema)
-            const overrideRows = (activeValue.overrides || []).flatMap((o) => {
-                return DAYS.map((day) => ({
+            const overrideRows = (activeValue.overrides || []).flatMap((o) =>
+                DAYS.map((day) => ({
                     branch_id: activeBranchId,
                     day_of_week: day,
                     start_date: o.startDate || null,
@@ -311,8 +317,8 @@ export default function AdminBranchesPage() {
                     is_closed: Boolean(o.isClosed),
                     open_time: o.isClosed ? null : o.open || null,
                     close_time: o.isClosed ? null : o.close || null,
-                }));
-            });
+                }))
+            );
 
             const payload = [...weeklyRows, ...overrideRows];
 
@@ -326,7 +332,7 @@ export default function AdminBranchesPage() {
 
             setDirty(false);
 
-            // Force reload from DB (so UI reflects actual stored values)
+            // force reload
             const branchName = activeBranch?.name || "Branch";
             setTimingsByBranch((prev) => {
                 const next = { ...prev };
@@ -345,252 +351,316 @@ export default function AdminBranchesPage() {
         }
     };
 
+    const showTimingsSkeleton =
+        timingsLoading && !timingsByBranch[activeBranchId];
+
     return (
         <RoleGuard allowedRoles={[ROLES.ADMIN, ROLES.LIBRARIAN]}>
             <AppShell title="Branches & Hours">
-                <PageHeader
-                    title="Branches & Hours"
-                    subtitle="Manage library branches and operating hours."
-                    right={
-                        <>
-                            <Button
-                                variant="outlined"
-                                startIcon={<AddBusinessOutlinedIcon />}
-                                sx={{ borderRadius: 3 }}
-                                onClick={handleAddBranch}
-                                disabled={branchesLoading || saving}
-                            >
-                                Add Branch
-                            </Button>
-                            <Button
-                                variant="contained"
-                                startIcon={<SaveOutlinedIcon />}
-                                sx={{ borderRadius: 3 }}
-                                onClick={handleSave}
-                                disabled={
-                                    saving ||
-                                    branchesLoading ||
-                                    timingsLoading ||
-                                    !activeBranchId ||
-                                    !dirty
-                                }
-                            >
-                                {saving ? "Saving…" : "Save Changes"}
-                            </Button>
-                        </>
-                    }
-                />
-
-                {branchesError ? (
-                    <Alert severity="error" sx={{ mt: 2 }}>
-                        {branchesError}
-                    </Alert>
-                ) : null}
-
-                {timingsError ? (
-                    <Alert severity="error" sx={{ mt: branchesError ? 1 : 2 }}>
-                        {timingsError}
-                    </Alert>
-                ) : null}
-
-                <Box
-                    sx={{
-                        mt: 2,
-                        display: "grid",
-                        gridTemplateColumns: { xs: "1fr", lg: "320px 1fr" },
-                        gap: 2,
-                        alignItems: "start",
-                    }}
-                >
-                    {/* Left: Branch list */}
-                    <Paper
-                        variant="outlined"
-                        sx={{ borderRadius: 4, overflow: "hidden" }}
-                    >
-                        <Box sx={{ p: 2 }}>
-                            <Typography sx={{ fontWeight: 900 }}>
-                                Branches
-                            </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary", mt: 0.25 }}
-                            >
-                                Select a branch to edit hours
-                            </Typography>
-
-                            <TextField
-                                label="Quick filter"
-                                placeholder="Type…"
-                                fullWidth
-                                sx={{ mt: 1.5 }}
-                                value={filterText}
-                                onChange={(e) => setFilterText(e.target.value)}
-                            />
-                        </Box>
-
-                        <Divider />
-
-                        {branchesLoading ? (
-                            <Box sx={{ p: 2, display: "flex", gap: 1.25 }}>
-                                <CircularProgress size={18} />
-                                <Typography sx={{ fontWeight: 800 }}>
-                                    Loading branches…
-                                </Typography>
-                            </Box>
-                        ) : (
-                            <List dense sx={{ p: 1 }}>
-                                {filteredBranches.map((b) => {
-                                    const selected = b.id === activeBranchId;
-                                    return (
-                                        <ListItemButton
-                                            key={b.id}
-                                            onClick={() => {
-                                                setActiveBranchId(b.id);
-                                            }}
-                                            sx={{
-                                                borderRadius: 3,
-                                                mb: 0.5,
-                                                backgroundColor: selected
-                                                    ? "action.selected"
-                                                    : "transparent",
-                                            }}
-                                        >
-                                            <ListItemText
-                                                primary={
-                                                    <Typography
-                                                        sx={{ fontWeight: 900 }}
-                                                    >
-                                                        {b.name}
-                                                    </Typography>
-                                                }
-                                                secondary={
-                                                    <Typography
-                                                        variant="body2"
-                                                        sx={{
-                                                            color: "text.secondary",
-                                                        }}
-                                                        noWrap
-                                                    >
-                                                        {b.address || b.id}
-                                                    </Typography>
-                                                }
-                                            />
-                                            <Chip
-                                                size="small"
-                                                label={
-                                                    selected
-                                                        ? "Editing"
-                                                        : "View"
-                                                }
-                                                sx={{
-                                                    borderRadius: 2,
-                                                    fontWeight: 900,
-                                                }}
-                                            />
-                                        </ListItemButton>
-                                    );
-                                })}
-
-                                {filteredBranches.length === 0 ? (
-                                    <Box sx={{ p: 2 }}>
-                                        <Typography sx={{ fontWeight: 900 }}>
-                                            No branches
-                                        </Typography>
-                                        <Typography
-                                            variant="body2"
-                                            sx={{ color: "text.secondary" }}
-                                        >
-                                            Try a different filter.
-                                        </Typography>
-                                    </Box>
-                                ) : null}
-                            </List>
-                        )}
-                    </Paper>
-
-                    {/* Right: Editor */}
-                    <Box sx={{ display: "grid", gap: 2 }}>
-                        <Card sx={{ borderRadius: 4 }}>
-                            <CardContent
+                {/* ✅ prevent “gone out of screen” / weird overflows */}
+                <Box sx={{ minWidth: 0, overflowX: "hidden" }}>
+                    <PageHeader
+                        title="Branches & Hours"
+                        subtitle="Manage library branches and operating hours."
+                        right={
+                            <Box
                                 sx={{
                                     display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    gap: 2,
+                                    gap: 1,
+                                    flexWrap: "wrap",
                                 }}
                             >
-                                <Box>
-                                    <Typography
-                                        sx={{ fontWeight: 900, fontSize: 18 }}
-                                    >
-                                        {activeValue?.branchName || "Branch"}
-                                    </Typography>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{ color: "text.secondary" }}
-                                    >
-                                        Configure weekly hours and date
-                                        overrides
-                                    </Typography>
-                                </Box>
-                                <Chip
-                                    label={dirty ? "Unsaved changes" : "Synced"}
-                                    sx={{
-                                        borderRadius: 3,
-                                        fontWeight: 900,
-                                        backgroundColor: dirty
-                                            ? "rgba(255,106,61,0.15)"
-                                            : "action.selected",
-                                    }}
-                                />
-                            </CardContent>
-                        </Card>
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<AddBusinessOutlinedIcon />}
+                                    sx={{ borderRadius: `${R.btn}px` }}
+                                    onClick={handleAddBranch}
+                                    disabled={branchesLoading || saving}
+                                >
+                                    Add Branch
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<SaveOutlinedIcon />}
+                                    sx={{ borderRadius: `${R.btn}px` }}
+                                    onClick={handleSave}
+                                    disabled={
+                                        saving ||
+                                        branchesLoading ||
+                                        timingsLoading ||
+                                        !activeBranchId ||
+                                        !dirty
+                                    }
+                                >
+                                    {saving ? "Saving…" : "Save Changes"}
+                                </Button>
+                            </Box>
+                        }
+                    />
 
-                        {timingsLoading && !timingsByBranch[activeBranchId] ? (
-                            <Paper
-                                variant="outlined"
-                                sx={{ borderRadius: 4, p: 3 }}
-                            >
+                    {branchesError ? (
+                        <Alert
+                            severity="error"
+                            sx={{ mt: 2, borderRadius: `${R.soft}px` }}
+                        >
+                            {branchesError}
+                        </Alert>
+                    ) : null}
+
+                    {timingsError ? (
+                        <Alert
+                            severity="error"
+                            sx={{
+                                mt: branchesError ? 1 : 2,
+                                borderRadius: `${R.soft}px`,
+                            }}
+                        >
+                            {timingsError}
+                        </Alert>
+                    ) : null}
+
+                    <Box
+                        sx={{
+                            mt: 2,
+                            display: "grid",
+                            gridTemplateColumns: { xs: "1fr", lg: "320px 1fr" },
+                            gap: 2,
+                            alignItems: "start",
+                            minWidth: 0,
+                        }}
+                    >
+                        {/* Left: Branch list */}
+                        <Paper
+                            variant="outlined"
+                            sx={{
+                                borderRadius: `${R.paper}px`,
+                                overflow: "hidden",
+                                minWidth: 0,
+                            }}
+                        >
+                            <Box sx={{ p: 2 }}>
+                                <Typography sx={{ fontWeight: 900 }}>
+                                    Branches
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    sx={{ color: "text.secondary", mt: 0.25 }}
+                                >
+                                    Select a branch to edit hours
+                                </Typography>
+
+                                <TextField
+                                    label="Quick filter"
+                                    placeholder="Type…"
+                                    fullWidth
+                                    sx={{ mt: 1.5 }}
+                                    value={filterText}
+                                    onChange={(e) =>
+                                        setFilterText(e.target.value)
+                                    }
+                                />
+                            </Box>
+
+                            <Divider />
+
+                            {branchesLoading ? (
                                 <Box
                                     sx={{
+                                        p: 2,
                                         display: "flex",
                                         gap: 1.25,
                                         alignItems: "center",
                                     }}
                                 >
                                     <CircularProgress size={18} />
-                                    <Typography sx={{ fontWeight: 900 }}>
-                                        Loading timings…
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        Loading branches…
                                     </Typography>
                                 </Box>
-                            </Paper>
-                        ) : activeValue ? (
-                            <BranchTimingEditor
-                                value={activeValue}
-                                onChange={(next) => {
-                                    setDirty(true);
-                                    setTimingsByBranch((prev) => ({
-                                        ...prev,
-                                        [activeBranchId]: next,
-                                    }));
+                            ) : (
+                                <List dense sx={{ p: 1 }}>
+                                    {filteredBranches.map((b) => {
+                                        const selected =
+                                            b.id === activeBranchId;
+                                        return (
+                                            <ListItemButton
+                                                key={b.id}
+                                                onClick={() => {
+                                                    setActiveBranchId(b.id);
+                                                }}
+                                                sx={{
+                                                    borderRadius: `${R.soft}px`,
+                                                    mb: 0.5,
+                                                    minWidth: 0,
+                                                    backgroundColor: selected
+                                                        ? "action.selected"
+                                                        : "transparent",
+                                                }}
+                                            >
+                                                <ListItemText
+                                                    primary={
+                                                        <Typography
+                                                            sx={{
+                                                                fontWeight: 900,
+                                                            }}
+                                                            noWrap
+                                                        >
+                                                            {b.name}
+                                                        </Typography>
+                                                    }
+                                                    secondary={
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{
+                                                                color: "text.secondary",
+                                                            }}
+                                                            noWrap
+                                                        >
+                                                            {b.address || b.id}
+                                                        </Typography>
+                                                    }
+                                                />
+                                                <Chip
+                                                    size="small"
+                                                    label={
+                                                        selected
+                                                            ? "Editing"
+                                                            : "View"
+                                                    }
+                                                    sx={{
+                                                        borderRadius: `${R.chip}px`,
+                                                        fontWeight: 900,
+                                                    }}
+                                                />
+                                            </ListItemButton>
+                                        );
+                                    })}
+
+                                    {filteredBranches.length === 0 ? (
+                                        <Box sx={{ p: 2 }}>
+                                            <Typography
+                                                sx={{ fontWeight: 900 }}
+                                            >
+                                                No branches
+                                            </Typography>
+                                            <Typography
+                                                variant="body2"
+                                                sx={{ color: "text.secondary" }}
+                                            >
+                                                Try a different filter.
+                                            </Typography>
+                                        </Box>
+                                    ) : null}
+                                </List>
+                            )}
+                        </Paper>
+
+                        {/* Right: Editor */}
+                        <Box sx={{ display: "grid", gap: 2, minWidth: 0 }}>
+                            <Card
+                                sx={{
+                                    borderRadius: `${R.card}px`,
+                                    minWidth: 0,
                                 }}
-                            />
-                        ) : (
-                            <Paper
-                                variant="outlined"
-                                sx={{ borderRadius: 4, p: 3 }}
                             >
-                                <Typography sx={{ fontWeight: 900 }}>
-                                    No data
-                                </Typography>
-                                <Typography
-                                    variant="body2"
-                                    sx={{ color: "text.secondary" }}
+                                <CardContent
+                                    sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        gap: 2,
+                                        minWidth: 0,
+                                        flexWrap: "wrap",
+                                    }}
                                 >
-                                    Select a branch to view/edit timings.
-                                </Typography>
-                            </Paper>
-                        )}
+                                    <Box sx={{ minWidth: 0 }}>
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 900,
+                                                fontSize: 18,
+                                            }}
+                                            noWrap
+                                        >
+                                            {activeValue?.branchName ||
+                                                "Branch"}
+                                        </Typography>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{ color: "text.secondary" }}
+                                        >
+                                            Configure weekly hours and date
+                                            overrides
+                                        </Typography>
+                                    </Box>
+                                    <Chip
+                                        label={
+                                            dirty ? "Unsaved changes" : "Synced"
+                                        }
+                                        sx={{
+                                            borderRadius: `${R.chip}px`,
+                                            fontWeight: 900,
+                                            backgroundColor: dirty
+                                                ? "rgba(255,106,61,0.15)"
+                                                : "action.selected",
+                                        }}
+                                    />
+                                </CardContent>
+                            </Card>
+
+                            {showTimingsSkeleton ? (
+                                <Paper
+                                    variant="outlined"
+                                    sx={{
+                                        borderRadius: `${R.paper}px`,
+                                        p: 3,
+                                    }}
+                                >
+                                    <Box
+                                        sx={{
+                                            display: "flex",
+                                            gap: 1.25,
+                                            alignItems: "center",
+                                        }}
+                                    >
+                                        <CircularProgress size={18} />
+                                        <Typography sx={{ fontWeight: 900 }}>
+                                            Loading timings…
+                                        </Typography>
+                                    </Box>
+                                </Paper>
+                            ) : activeValue ? (
+                                <Box sx={{ minWidth: 0, overflowX: "hidden" }}>
+                                    <BranchTimingEditor
+                                        value={activeValue}
+                                        onChange={(next) => {
+                                            setDirty(true);
+                                            setTimingsByBranch((prev) => ({
+                                                ...prev,
+                                                [activeBranchId]: next,
+                                            }));
+                                        }}
+                                    />
+                                </Box>
+                            ) : (
+                                <Paper
+                                    variant="outlined"
+                                    sx={{
+                                        borderRadius: `${R.paper}px`,
+                                        p: 3,
+                                    }}
+                                >
+                                    <Typography sx={{ fontWeight: 900 }}>
+                                        No data
+                                    </Typography>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{ color: "text.secondary" }}
+                                    >
+                                        Select a branch to view/edit timings.
+                                    </Typography>
+                                </Paper>
+                            )}
+                        </Box>
                     </Box>
                 </Box>
             </AppShell>

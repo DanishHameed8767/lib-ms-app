@@ -21,13 +21,22 @@ import {
 import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 
+/** ✅ Explicit px radii so it won’t turn “weirdly round” via theme scaling */
+const R = {
+    paper: 14,
+    soft: 12,
+    btn: 12,
+    chip: 999,
+    chipSoft: 10,
+};
+
 function ClosedChip() {
     return (
         <Chip
             size="small"
             label="Closed"
             sx={{
-                borderRadius: 2,
+                borderRadius: `${R.chip}px`,
                 fontWeight: 900,
                 backgroundColor: "rgba(231,76,60,0.15)",
                 color: "#e74c3c",
@@ -81,11 +90,15 @@ export default function BranchTimingEditor({ value, onChange }) {
     };
 
     return (
-        <Box sx={{ display: "grid", gap: 2 }}>
+        <Box sx={{ display: "grid", gap: 2, minWidth: 0 }}>
             {/* Weekly schedule */}
             <Paper
                 variant="outlined"
-                sx={{ borderRadius: 4, overflow: "hidden" }}
+                sx={{
+                    borderRadius: `${R.paper}px`,
+                    overflow: "hidden",
+                    minWidth: 0,
+                }}
             >
                 <Box sx={{ p: 2 }}>
                     <Typography sx={{ fontWeight: 900 }}>
@@ -101,8 +114,16 @@ export default function BranchTimingEditor({ value, onChange }) {
 
                 <Divider />
 
+                {/* ✅ Keep tables from forcing page width */}
                 <Box sx={{ overflowX: "auto" }}>
-                    <Table size="small" sx={{ minWidth: 860 }}>
+                    <Table
+                        size="small"
+                        sx={{
+                            minWidth: 860,
+                            "& th": { fontWeight: 900 },
+                            "& td": { verticalAlign: "middle" },
+                        }}
+                    >
                         <TableHead>
                             <TableRow>
                                 <TableCell>Day</TableCell>
@@ -141,7 +162,12 @@ export default function BranchTimingEditor({ value, onChange }) {
                                                     open: e.target.value,
                                                 })
                                             }
-                                            sx={{ width: 140 }}
+                                            sx={{
+                                                width: 140,
+                                                "& .MuiOutlinedInput-root": {
+                                                    borderRadius: `${R.soft}px`,
+                                                },
+                                            }}
                                         />
                                     </TableCell>
 
@@ -155,7 +181,12 @@ export default function BranchTimingEditor({ value, onChange }) {
                                                     close: e.target.value,
                                                 })
                                             }
-                                            sx={{ width: 140 }}
+                                            sx={{
+                                                width: 140,
+                                                "& .MuiOutlinedInput-root": {
+                                                    borderRadius: `${R.soft}px`,
+                                                },
+                                            }}
                                         />
                                     </TableCell>
 
@@ -169,7 +200,7 @@ export default function BranchTimingEditor({ value, onChange }) {
                                                     row.open || "--:--"
                                                 } – ${row.close || "--:--"}`}
                                                 sx={{
-                                                    borderRadius: 2,
+                                                    borderRadius: `${R.chipSoft}px`,
                                                     fontWeight: 900,
                                                 }}
                                             />
@@ -185,7 +216,11 @@ export default function BranchTimingEditor({ value, onChange }) {
             {/* Date overrides */}
             <Paper
                 variant="outlined"
-                sx={{ borderRadius: 4, overflow: "hidden" }}
+                sx={{
+                    borderRadius: `${R.paper}px`,
+                    overflow: "hidden",
+                    minWidth: 0,
+                }}
             >
                 <Box
                     sx={{
@@ -194,9 +229,10 @@ export default function BranchTimingEditor({ value, onChange }) {
                         alignItems: "center",
                         justifyContent: "space-between",
                         gap: 2,
+                        flexWrap: "wrap",
                     }}
                 >
-                    <Box>
+                    <Box sx={{ minWidth: 0 }}>
                         <Typography sx={{ fontWeight: 900 }}>
                             Date Overrides
                         </Typography>
@@ -212,7 +248,7 @@ export default function BranchTimingEditor({ value, onChange }) {
                     <Button
                         variant="contained"
                         startIcon={<AddOutlinedIcon />}
-                        sx={{ borderRadius: 3 }}
+                        sx={{ borderRadius: `${R.btn}px` }}
                         onClick={addOverride}
                     >
                         Add Override
@@ -222,7 +258,14 @@ export default function BranchTimingEditor({ value, onChange }) {
                 <Divider />
 
                 <Box sx={{ overflowX: "auto" }}>
-                    <Table size="small" sx={{ minWidth: 980 }}>
+                    <Table
+                        size="small"
+                        sx={{
+                            minWidth: 980,
+                            "& th": { fontWeight: 900 },
+                            "& td": { verticalAlign: "middle" },
+                        }}
+                    >
                         <TableHead>
                             <TableRow>
                                 <TableCell>Start date</TableCell>
@@ -247,7 +290,12 @@ export default function BranchTimingEditor({ value, onChange }) {
                                                     startDate: e.target.value,
                                                 })
                                             }
-                                            sx={{ width: 160 }}
+                                            sx={{
+                                                width: 160,
+                                                "& .MuiOutlinedInput-root": {
+                                                    borderRadius: `${R.soft}px`,
+                                                },
+                                            }}
                                         />
                                     </TableCell>
 
@@ -260,7 +308,12 @@ export default function BranchTimingEditor({ value, onChange }) {
                                                     endDate: e.target.value,
                                                 })
                                             }
-                                            sx={{ width: 160 }}
+                                            sx={{
+                                                width: 160,
+                                                "& .MuiOutlinedInput-root": {
+                                                    borderRadius: `${R.soft}px`,
+                                                },
+                                            }}
                                         />
                                     </TableCell>
 
@@ -285,7 +338,12 @@ export default function BranchTimingEditor({ value, onChange }) {
                                                     open: e.target.value,
                                                 })
                                             }
-                                            sx={{ width: 140 }}
+                                            sx={{
+                                                width: 140,
+                                                "& .MuiOutlinedInput-root": {
+                                                    borderRadius: `${R.soft}px`,
+                                                },
+                                            }}
                                         />
                                     </TableCell>
 
@@ -299,7 +357,12 @@ export default function BranchTimingEditor({ value, onChange }) {
                                                     close: e.target.value,
                                                 })
                                             }
-                                            sx={{ width: 140 }}
+                                            sx={{
+                                                width: 140,
+                                                "& .MuiOutlinedInput-root": {
+                                                    borderRadius: `${R.soft}px`,
+                                                },
+                                            }}
                                         />
                                     </TableCell>
 
@@ -313,6 +376,11 @@ export default function BranchTimingEditor({ value, onChange }) {
                                             }
                                             placeholder="Reason / note"
                                             fullWidth
+                                            sx={{
+                                                "& .MuiOutlinedInput-root": {
+                                                    borderRadius: `${R.soft}px`,
+                                                },
+                                            }}
                                         />
                                     </TableCell>
 
@@ -323,6 +391,9 @@ export default function BranchTimingEditor({ value, onChange }) {
                                                     deleteOverride(o.id)
                                                 }
                                                 aria-label="delete"
+                                                sx={{
+                                                    borderRadius: `${R.soft}px`,
+                                                }}
                                             >
                                                 <DeleteOutlineOutlinedIcon />
                                             </IconButton>

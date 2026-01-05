@@ -12,6 +12,7 @@ import {
     Button,
     Stack,
     Paper,
+    Alert,
 } from "@mui/material";
 import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
 import ReceiptPreview from "./ReceiptPreview";
@@ -49,7 +50,7 @@ function StatusChip({ status }) {
     return (
         <Chip
             size="small"
-            label={status}
+            label={status || "—"}
             sx={{
                 borderRadius: 2,
                 fontWeight: 900,
@@ -77,16 +78,20 @@ export default function PaymentReviewDrawer({
         setSaving(false);
     }, [payment?.id, payment?.note]);
 
-    if (!payment) return null;
+    const canAct = payment?.status === "Pending";
 
-    const canAct = payment.status === "Pending";
+    const safeClose = () => {
+        if (saving) return;
+        onClose?.();
+    };
 
     const handleApprove = async () => {
+        if (!payment?.id) return;
         setError("");
         setSaving(true);
         try {
             await onApprove?.(payment.id, note);
-            onClose?.();
+            safeClose();
         } catch (e) {
             setError(e?.message || "Failed to approve payment.");
         } finally {
@@ -95,15 +100,18 @@ export default function PaymentReviewDrawer({
     };
 
     const handleReject = async () => {
-        if (!note.trim()) {
+        if (!payment?.id) return;
+
+        if (!String(note || "").trim()) {
             setError("Please add a note when rejecting (required).");
             return;
         }
+
         setError("");
         setSaving(true);
         try {
             await onReject?.(payment.id, note);
-            onClose?.();
+            safeClose();
         } catch (e) {
             setError(e?.message || "Failed to reject payment.");
         } finally {
@@ -115,7 +123,8 @@ export default function PaymentReviewDrawer({
         <Drawer
             anchor="right"
             open={open}
-            onClose={onClose}
+            onClose={safeClose}
+            keepMounted
             PaperProps={{
                 sx: {
                     width: { xs: "100%", sm: 520 },
@@ -130,15 +139,31 @@ export default function PaymentReviewDrawer({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    gap: 2,
                 }}
             >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                <Box
+                    sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        minWidth: 0,
+                    }}
+                >
+                    <Typography
+                        variant="h6"
+                        sx={{ fontWeight: 900, whiteSpace: "nowrap" }}
+                    >
                         Review Payment
                     </Typography>
-                    <StatusChip status={payment.status} />
+                    <StatusChip status={payment?.status} />
                 </Box>
-                <IconButton onClick={onClose} aria-label="close">
+
+                <IconButton
+                    onClick={safeClose}
+                    aria-label="close"
+                    disabled={saving}
+                >
                     <CloseOutlinedIcon />
                 </IconButton>
             </Box>
@@ -146,101 +171,140 @@ export default function PaymentReviewDrawer({
             <Divider />
 
             <Box sx={{ p: 2.25, display: "grid", gap: 2 }}>
-                {/* Prefer signed URL from Supabase; fallback to path */}
-                <ReceiptPreview
-                    receiptUrl={payment.receiptUrl || ""}
-                    receiptPath={payment.receiptPath || ""}
-                />
+                {!payment ? (
+                    <Paper variant="outlined" sx={{ borderRadius: 4, p: 2 }}>
+                        <Typography sx={{ fontWeight: 900 }}>
+                            No payment selected
+                        </Typography>
+                        <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary", mt: 0.5 }}
+                        >
+                            Select a payment to review.
+                        </Typography>
+                    </Paper>
+                ) : (
+                    <>
+                        <ReceiptPreview
+                            receiptUrl={payment.receiptUrl || ""}
+                            receiptPath={payment.receiptPath || ""}
+                        />
 
-                <Paper variant="outlined" sx={{ borderRadius: 4, p: 2 }}>
-                    <Typography sx={{ fontWeight: 900, mb: 1 }}>
-                        Details
-                    </Typography>
+                        <Paper
+                            variant="outlined"
+                            sx={{ borderRadius: 4, p: 2 }}
+                        >
+                            <Typography sx={{ fontWeight: 900, mb: 1 }}>
+                                Details
+                            </Typography>
 
-                    <Stack spacing={1}>
-                        <Row
-                            label="Entity"
-                            value={`${payment.entityType} • ${payment.entityRef}`}
-                        />
-                        <Row
-                            label="Payer"
-                            value={`${payment.payerName} (@${payment.payerUsername})`}
-                        />
-                        <Row
-                            label="Amount"
-                            value={`${formatMoney(payment.amount)} • ${
-                                payment.method || "—"
-                            }`}
-                        />
-                        <Row
-                            label="Submitted"
-                            value={formatDateTime(payment.submittedAt)}
-                        />
-                        {payment.reviewedAt ? (
-                            <Row
-                                label="Reviewed"
-                                value={formatDateTime(payment.reviewedAt)}
-                            />
+                            <Stack spacing={1}>
+                                <Row
+                                    label="Entity"
+                                    value={`${payment.entityType || "—"} • ${
+                                        payment.entityRef || "—"
+                                    }`}
+                                />
+                                <Row
+                                    label="Payer"
+                                    value={`${payment.payerName || "—"} (@${
+                                        payment.payerUsername || "—"
+                                    })`}
+                                />
+                                <Row
+                                    label="Amount"
+                                    value={`${formatMoney(payment.amount)} • ${
+                                        payment.method || "—"
+                                    }`}
+                                />
+                                <Row
+                                    label="Submitted"
+                                    value={formatDateTime(payment.submittedAt)}
+                                />
+                                {payment.reviewedAt ? (
+                                    <Row
+                                        label="Reviewed"
+                                        value={formatDateTime(
+                                            payment.reviewedAt
+                                        )}
+                                    />
+                                ) : null}
+                                {payment.reviewedBy ? (
+                                    <Row
+                                        label="Reviewer"
+                                        value={payment.reviewedBy}
+                                    />
+                                ) : null}
+                            </Stack>
+                        </Paper>
+
+                        {error ? (
+                            <Alert severity="error" sx={{ borderRadius: 3 }}>
+                                {error}
+                            </Alert>
                         ) : null}
-                        {payment.reviewedBy ? (
-                            <Row label="Reviewer" value={payment.reviewedBy} />
+
+                        <TextField
+                            label="Reviewer note"
+                            placeholder="Add a note (required on reject)…"
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            multiline
+                            minRows={3}
+                            fullWidth
+                            error={Boolean(error)}
+                            helperText={error || " "}
+                            InputProps={{ readOnly: !canAct }}
+                        />
+
+                        <Box
+                            sx={{
+                                display: "flex",
+                                gap: 1,
+                                justifyContent: "flex-end",
+                            }}
+                        >
+                            <Button
+                                variant="outlined"
+                                onClick={safeClose}
+                                sx={{ borderRadius: 3 }}
+                                disabled={saving}
+                            >
+                                Close
+                            </Button>
+
+                            <Button
+                                variant="contained"
+                                onClick={handleApprove}
+                                sx={{ borderRadius: 3 }}
+                                disabled={!canAct || saving}
+                            >
+                                {saving ? "Saving…" : "Approve"}
+                            </Button>
+
+                            <Button
+                                variant="outlined"
+                                color="error"
+                                onClick={handleReject}
+                                sx={{ borderRadius: 3 }}
+                                disabled={!canAct || saving}
+                            >
+                                {saving ? "Saving…" : "Reject"}
+                            </Button>
+                        </Box>
+
+                        {!canAct ? (
+                            <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                            >
+                                This payment is already{" "}
+                                {String(payment.status || "").toLowerCase()}.
+                                Actions are disabled.
+                            </Typography>
                         ) : null}
-                    </Stack>
-                </Paper>
-
-                <TextField
-                    label="Reviewer note"
-                    placeholder="Add a note (required on reject)…"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    multiline
-                    minRows={3}
-                    fullWidth
-                    error={Boolean(error)}
-                    helperText={error || " "}
-                    disabled={!canAct && payment.status !== "Rejected"} // still allow reading note; you can tweak
-                />
-
-                <Box
-                    sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}
-                >
-                    <Button
-                        variant="outlined"
-                        onClick={onClose}
-                        sx={{ borderRadius: 3 }}
-                        disabled={saving}
-                    >
-                        Close
-                    </Button>
-                    <Button
-                        variant="contained"
-                        onClick={handleApprove}
-                        sx={{ borderRadius: 3 }}
-                        disabled={!canAct || saving}
-                    >
-                        {saving ? "Saving…" : "Approve"}
-                    </Button>
-                    <Button
-                        variant="outlined"
-                        color="error"
-                        onClick={handleReject}
-                        sx={{ borderRadius: 3 }}
-                        disabled={!canAct || saving}
-                    >
-                        {saving ? "Saving…" : "Reject"}
-                    </Button>
-                </Box>
-
-                {!canAct ? (
-                    <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary" }}
-                    >
-                        This payment is already{" "}
-                        {String(payment.status || "").toLowerCase()}. Actions
-                        are disabled.
-                    </Typography>
-                ) : null}
+                    </>
+                )}
             </Box>
         </Drawer>
     );

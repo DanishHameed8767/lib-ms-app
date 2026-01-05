@@ -24,68 +24,118 @@ import {
     TableCell,
     TableBody,
     Chip,
+    Tooltip,
 } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
 import UploadOutlinedIcon from "@mui/icons-material/UploadOutlined";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import AppShell from "../../../components/AppShell";
 import PageHeader from "../../../components/PageHeader";
 import RoleGuard from "../../../components/RoleGuard";
 import { ROLES } from "../../../lib/roles";
 import UploadReceiptDialog from "../../../components/UploadReceiptDialog";
 
-function money(n) {
+const R = {
+    xs: "10px",
+    sm: "12px",
+    md: "16px",
+    lg: "20px",
+    xl: "24px",
+};
+
+function moneyPKR(n) {
     const v = Number(n || 0);
-    return v.toLocaleString(undefined, { style: "currency", currency: "USD" });
+    // PKR formatting (works even if locale isn't Pakistan)
+    return v.toLocaleString(undefined, { style: "currency", currency: "PKR" });
+}
+
+function shortId(id) {
+    const s = String(id || "");
+    if (s.length <= 14) return s;
+    return `${s.slice(0, 8)}…${s.slice(-4)}`;
+}
+
+function PillChip({ label, tone = "neutral" }) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
+
+    const tones = {
+        neutral: {
+            c: alpha(isDark ? "#FFFFFF" : "#0F1115", isDark ? 0.75 : 0.65),
+        },
+        warn: { c: theme.palette.primary.main },
+        ok: { c: theme.palette.success.main },
+        danger: { c: theme.palette.error.main },
+    };
+
+    const c = tones[tone]?.c || theme.palette.primary.main;
+
+    return (
+        <Chip
+            size="small"
+            label={label}
+            sx={{
+                height: 28,
+                borderRadius: "999px",
+                fontWeight: 850,
+                bgcolor: alpha(c, isDark ? 0.18 : 0.12),
+                color: tone === "neutral" ? "text.secondary" : c,
+                border: `1px solid ${alpha(c, 0.28)}`,
+                "& .MuiChip-label": { px: 1.1 },
+            }}
+        />
+    );
 }
 
 function FineStatusChip({ status }) {
-    const map = {
-        Unpaid: { bg: "rgba(255,106,61,0.15)", fg: "primary.main" },
-        "Partially Paid": { bg: "rgba(255,106,61,0.15)", fg: "primary.main" },
-        Paid: { bg: "rgba(46,204,113,0.15)", fg: "#2ecc71" },
-        Waived: { bg: "rgba(160,160,160,0.18)", fg: "text.secondary" },
-    };
-    const s = map[status] || map.Unpaid;
-    return (
-        <Chip
-            size="small"
-            label={status}
-            sx={{
-                borderRadius: 2,
-                fontWeight: 900,
-                backgroundColor: s.bg,
-                color: s.fg,
-            }}
-        />
-    );
+    if (!status) return <PillChip label="—" tone="neutral" />;
+
+    if (status === "Paid") return <PillChip label="Paid" tone="ok" />;
+    if (status === "Waived") return <PillChip label="Waived" tone="neutral" />;
+    if (status === "Partially Paid")
+        return <PillChip label="Partially Paid" tone="warn" />;
+    return <PillChip label="Unpaid" tone="warn" />;
 }
 
 function ApprovalChip({ status }) {
-    if (!status)
-        return <Chip size="small" label="—" sx={{ borderRadius: 2 }} />;
-    const map = {
-        Pending: { bg: "rgba(255,106,61,0.15)", fg: "primary.main" },
-        Approved: { bg: "rgba(46,204,113,0.15)", fg: "#2ecc71" },
-        Rejected: { bg: "rgba(231,76,60,0.15)", fg: "#e74c3c" },
-        Cancelled: { bg: "rgba(160,160,160,0.18)", fg: "text.secondary" },
-    };
-    const s = map[status] || map.Pending;
-    return (
-        <Chip
-            size="small"
-            label={status}
-            sx={{
-                borderRadius: 2,
-                fontWeight: 900,
-                backgroundColor: s.bg,
-                color: s.fg,
-            }}
-        />
-    );
+    if (!status) return <PillChip label="—" tone="neutral" />;
+
+    if (status === "Approved") return <PillChip label="Approved" tone="ok" />;
+    if (status === "Rejected")
+        return <PillChip label="Rejected" tone="danger" />;
+    if (status === "Cancelled")
+        return <PillChip label="Cancelled" tone="neutral" />;
+    return <PillChip label="Pending" tone="warn" />;
 }
 
 export default function ReaderFinesPage() {
     const { supabase, user } = useAuth();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
+
+    const borderSoft = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.1 : 0.1
+    );
+    const hoverBg = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.04 : 0.035
+    );
+
+    const surfaceCard = {
+        borderRadius: R.xl,
+        border: `1px solid ${borderSoft}`,
+        background: isDark
+            ? `linear-gradient(180deg, ${alpha("#FFFFFF", 0.05)} 0%, ${alpha(
+                  "#FFFFFF",
+                  0.02
+              )} 100%)`
+            : "#FFFFFF",
+        boxShadow: "none",
+        overflow: "hidden",
+        minWidth: 0,
+    };
 
     const [rows, setRows] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
@@ -221,7 +271,6 @@ export default function ReaderFinesPage() {
         if (outstanding <= 0)
             throw new Error("Nothing outstanding for this fine.");
 
-        // Block if there is already a pending receipt
         if (
             fine.latestReceipt?.status === "Pending" ||
             fine.payment?.approvalStatus === "Pending"
@@ -234,7 +283,7 @@ export default function ReaderFinesPage() {
             userId: user.id,
             entityType: "Fine",
             entityId: fine.id,
-            amount: outstanding, // pay full outstanding by default
+            amount: outstanding,
             file,
         });
 
@@ -248,15 +297,9 @@ export default function ReaderFinesPage() {
                     title="My Fines"
                     subtitle="Upload a receipt and wait for approval to clear fines."
                     right={
-                        <Chip
-                            label={`Unpaid total: ${money(unpaidTotal)}`}
-                            sx={{
-                                borderRadius: 3,
-                                fontWeight: 900,
-                                backgroundColor: unpaidTotal
-                                    ? "rgba(255,106,61,0.15)"
-                                    : "rgba(46,204,113,0.15)",
-                            }}
+                        <PillChip
+                            label={`Unpaid total: ${moneyPKR(unpaidTotal)}`}
+                            tone={unpaidTotal ? "warn" : "ok"}
                         />
                     }
                 />
@@ -264,33 +307,47 @@ export default function ReaderFinesPage() {
                 {error ? (
                     <Paper
                         variant="outlined"
-                        sx={{ mt: 2, p: 2, borderRadius: 4 }}
+                        sx={{ mt: 2, ...surfaceCard, p: 2.25 }}
                     >
                         <Typography
-                            sx={{ fontWeight: 900, color: "error.main" }}
+                            sx={{ fontWeight: 950, color: "error.main" }}
                         >
                             {error}
+                        </Typography>
+                        <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary", mt: 0.5 }}
+                        >
+                            Try refreshing the page.
                         </Typography>
                     </Paper>
                 ) : null}
 
+                {/* Filter Bar (capsule style) */}
                 <Paper
                     variant="outlined"
                     sx={{
                         mt: 2,
-                        p: 1.25,
-                        borderRadius: 4,
-                        display: "flex",
+                        p: 1,
+                        borderRadius: "999px",
+                        borderColor: borderSoft,
+                        background: alpha(
+                            isDark ? "#0F1115" : "#FFFFFF",
+                            isDark ? 0.35 : 0.65
+                        ),
+                        backdropFilter: "blur(10px)",
+                        display: "grid",
+                        gridTemplateColumns: { xs: "1fr", lg: "1fr auto auto" },
                         gap: 1,
-                        flexWrap: "wrap",
                         alignItems: "center",
+                        minWidth: 0,
                     }}
                 >
                     <TextField
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
                         placeholder="Search fine ID / borrow ID…"
-                        sx={{ width: { xs: "100%", sm: 420 } }}
+                        fullWidth
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
@@ -298,14 +355,31 @@ export default function ReaderFinesPage() {
                                 </InputAdornment>
                             ),
                         }}
+                        sx={{
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: "999px",
+                                backgroundColor: alpha(
+                                    isDark ? "#FFFFFF" : "#0F1115",
+                                    isDark ? 0.04 : 0.03
+                                ),
+                            },
+                            "& .MuiOutlinedInput-notchedOutline": {
+                                borderColor: borderSoft,
+                            },
+                        }}
                     />
-                    <Box sx={{ flex: 1 }} />
+
                     <TextField
                         select
                         label="Filter"
                         value={filter}
                         onChange={(e) => setFilter(e.target.value)}
-                        sx={{ width: { xs: "100%", sm: 260 } }}
+                        sx={{
+                            width: { xs: "100%", lg: 260 },
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: "999px",
+                            },
+                        }}
                     >
                         {[
                             "All",
@@ -324,44 +398,111 @@ export default function ReaderFinesPage() {
                         component={Link}
                         href="/policies"
                         variant="outlined"
-                        sx={{ borderRadius: 3 }}
+                        sx={{
+                            borderRadius: "999px",
+                            px: 2.1,
+                            height: 44,
+                            whiteSpace: "nowrap",
+                        }}
                     >
                         Payment Policy
                     </Button>
                 </Paper>
 
-                <Paper
-                    variant="outlined"
-                    sx={{ mt: 2, borderRadius: 4, overflow: "hidden" }}
-                >
-                    <Box sx={{ p: 2 }}>
-                        <Typography sx={{ fontWeight: 900 }}>
+                {/* Table */}
+                <Paper variant="outlined" sx={{ mt: 2, ...surfaceCard }}>
+                    <Box
+                        sx={{
+                            p: 2.25,
+                            display: "flex",
+                            alignItems: "baseline",
+                            gap: 1,
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <Typography
+                            sx={{ fontWeight: 950, letterSpacing: "-0.01em" }}
+                        >
                             Fines ({loading ? "…" : filtered.length})
                         </Typography>
                         <Typography
                             variant="body2"
-                            sx={{ color: "text.secondary", mt: 0.25 }}
+                            sx={{ color: "text.secondary" }}
                         >
-                            Live via `fines` + `payment_receipts` + Storage
-                            bucket `receipts`
+                            Live from <code>fines</code> +{" "}
+                            <code>payment_receipts</code>
                         </Typography>
+                        <Box sx={{ flex: 1 }} />
+                        <PillChip
+                            label={
+                                filter === "All"
+                                    ? "All filters"
+                                    : `Filter: ${filter}`
+                            }
+                            tone="neutral"
+                        />
                     </Box>
 
-                    <Divider />
+                    <Divider sx={{ borderColor: borderSoft }} />
 
-                    <Box sx={{ overflowX: "auto" }}>
-                        <Table size="small" sx={{ minWidth: 1100 }}>
+                    <Box
+                        sx={{
+                            width: "100%",
+                            maxWidth: "100%",
+                            overflowX: "auto",
+                        }}
+                    >
+                        <Table
+                            size="small"
+                            sx={{
+                                width: "100%",
+                                tableLayout: "fixed",
+                                minWidth: 980, // keeps it compact; scroll stays inside this box
+                            }}
+                        >
                             <TableHead>
-                                <TableRow>
-                                    <TableCell>Fine ID</TableCell>
-                                    <TableCell>Borrow ID</TableCell>
-                                    <TableCell>Type</TableCell>
-                                    <TableCell>Amount</TableCell>
-                                    <TableCell>Due</TableCell>
-                                    <TableCell>Status</TableCell>
-                                    <TableCell>Receipt</TableCell>
-                                    <TableCell>Approval</TableCell>
-                                    <TableCell align="right">Action</TableCell>
+                                <TableRow
+                                    sx={{
+                                        backgroundColor: alpha(
+                                            isDark ? "#FFFFFF" : "#0F1115",
+                                            isDark ? 0.03 : 0.02
+                                        ),
+                                        "& th": {
+                                            fontWeight: 900,
+                                            color: "text.secondary",
+                                        },
+                                    }}
+                                >
+                                    <TableCell sx={{ width: 200 }}>
+                                        Fine
+                                    </TableCell>
+                                    <TableCell sx={{ width: 220 }}>
+                                        Borrow
+                                    </TableCell>
+                                    <TableCell sx={{ width: 160 }}>
+                                        Type
+                                    </TableCell>
+                                    <TableCell sx={{ width: 140 }}>
+                                        Amount
+                                    </TableCell>
+                                    <TableCell sx={{ width: 120 }}>
+                                        Due
+                                    </TableCell>
+                                    <TableCell sx={{ width: 140 }}>
+                                        Status
+                                    </TableCell>
+                                    <TableCell sx={{ width: 220 }}>
+                                        Receipt
+                                    </TableCell>
+                                    <TableCell sx={{ width: 160 }}>
+                                        Approval
+                                    </TableCell>
+                                    <TableCell
+                                        sx={{ width: 220 }}
+                                        align="right"
+                                    >
+                                        Action
+                                    </TableCell>
                                 </TableRow>
                             </TableHead>
 
@@ -375,13 +516,23 @@ export default function ReaderFinesPage() {
                                             <TableRow key={`sk-${idx}`}>
                                                 <TableCell
                                                     colSpan={9}
-                                                    sx={{ py: 2 }}
+                                                    sx={{ py: 1.6 }}
                                                 >
                                                     <Paper
                                                         variant="outlined"
                                                         sx={{
-                                                            borderRadius: 3,
-                                                            height: 42,
+                                                            borderRadius: R.lg,
+                                                            height: 44,
+                                                            borderColor:
+                                                                borderSoft,
+                                                            background: alpha(
+                                                                isDark
+                                                                    ? "#FFFFFF"
+                                                                    : "#0F1115",
+                                                                isDark
+                                                                    ? 0.03
+                                                                    : 0.02
+                                                            ),
                                                         }}
                                                     />
                                                 </TableCell>
@@ -394,45 +545,139 @@ export default function ReaderFinesPage() {
                                     );
                                     const approval =
                                         f.payment?.approvalStatus || null;
+
                                     const canUpload =
                                         f.status !== "Paid" &&
                                         f.status !== "Waived" &&
                                         approval !== "Pending";
 
+                                    const outstanding = Math.max(
+                                        (f.amount || 0) - (f.amountPaid || 0),
+                                        0
+                                    );
+
                                     return (
-                                        <TableRow key={f.id} hover>
-                                            <TableCell sx={{ fontWeight: 900 }}>
-                                                {f.id}
-                                            </TableCell>
+                                        <TableRow
+                                            key={f.id}
+                                            hover
+                                            sx={{
+                                                "&:hover": {
+                                                    backgroundColor: hoverBg,
+                                                },
+                                                "& td": {
+                                                    borderColor: borderSoft,
+                                                },
+                                            }}
+                                        >
                                             <TableCell
-                                                sx={{ fontFamily: "monospace" }}
+                                                sx={{
+                                                    fontWeight: 950,
+                                                    whiteSpace: "nowrap",
+                                                }}
                                             >
-                                                {f.borrowId}
+                                                <Tooltip title={f.id} arrow>
+                                                    <span>{shortId(f.id)}</span>
+                                                </Tooltip>
                                             </TableCell>
-                                            <TableCell>{f.fineType}</TableCell>
-                                            <TableCell sx={{ fontWeight: 900 }}>
-                                                {money(f.amount)}
+
+                                            <TableCell
+                                                sx={{ whiteSpace: "nowrap" }}
+                                            >
+                                                <Tooltip
+                                                    title={f.borrowId || ""}
+                                                    arrow
+                                                >
+                                                    <span
+                                                        style={{
+                                                            fontFamily:
+                                                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                                        }}
+                                                    >
+                                                        {shortId(f.borrowId)}
+                                                    </span>
+                                                </Tooltip>
                                             </TableCell>
+
+                                            <TableCell
+                                                sx={{ color: "text.secondary" }}
+                                            >
+                                                {f.fineType || "—"}
+                                            </TableCell>
+
+                                            <TableCell
+                                                sx={{
+                                                    fontWeight: 950,
+                                                    whiteSpace: "nowrap",
+                                                }}
+                                            >
+                                                {moneyPKR(f.amount)}
+                                                {outstanding > 0 ? (
+                                                    <Typography
+                                                        variant="caption"
+                                                        sx={{
+                                                            display: "block",
+                                                            color: "text.secondary",
+                                                        }}
+                                                    >
+                                                        Due:{" "}
+                                                        {moneyPKR(outstanding)}
+                                                    </Typography>
+                                                ) : null}
+                                            </TableCell>
+
                                             <TableCell
                                                 sx={{ whiteSpace: "nowrap" }}
                                             >
                                                 {f.dueDate || "—"}
                                             </TableCell>
+
                                             <TableCell>
                                                 <FineStatusChip
                                                     status={f.status}
                                                 />
                                             </TableCell>
-                                            <TableCell>
-                                                {hasPayment
-                                                    ? f.payment.receiptFileName
-                                                    : "—"}
+
+                                            <TableCell
+                                                sx={{ color: "text.secondary" }}
+                                            >
+                                                {hasPayment ? (
+                                                    <Tooltip
+                                                        title={
+                                                            f.payment
+                                                                .receiptFileName
+                                                        }
+                                                        arrow
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                display:
+                                                                    "inline-block",
+                                                                maxWidth: 190,
+                                                                overflow:
+                                                                    "hidden",
+                                                                textOverflow:
+                                                                    "ellipsis",
+                                                                whiteSpace:
+                                                                    "nowrap",
+                                                            }}
+                                                        >
+                                                            {
+                                                                f.payment
+                                                                    .receiptFileName
+                                                            }
+                                                        </span>
+                                                    </Tooltip>
+                                                ) : (
+                                                    "—"
+                                                )}
                                             </TableCell>
+
                                             <TableCell>
                                                 <ApprovalChip
                                                     status={approval}
                                                 />
                                             </TableCell>
+
                                             <TableCell align="right">
                                                 <Box
                                                     sx={{
@@ -444,25 +689,49 @@ export default function ReaderFinesPage() {
                                                     }}
                                                 >
                                                     {approval === "Rejected" ? (
-                                                        <Button
-                                                            size="small"
-                                                            variant="outlined"
-                                                            sx={{
-                                                                borderRadius: 3,
-                                                            }}
-                                                            onClick={() =>
-                                                                alert(
-                                                                    `Reviewer note: ${
-                                                                        f
-                                                                            .payment
-                                                                            ?.reviewerNote ||
-                                                                        "—"
-                                                                    }`
-                                                                )
+                                                        <Tooltip
+                                                            title={
+                                                                f.payment
+                                                                    ?.reviewerNote ||
+                                                                "—"
                                                             }
+                                                            arrow
                                                         >
-                                                            View note
-                                                        </Button>
+                                                            <Chip
+                                                                icon={
+                                                                    <InfoOutlinedIcon />
+                                                                }
+                                                                label="Note"
+                                                                size="small"
+                                                                sx={{
+                                                                    height: 32,
+                                                                    borderRadius:
+                                                                        "999px",
+                                                                    fontWeight: 850,
+                                                                    bgcolor:
+                                                                        alpha(
+                                                                            theme
+                                                                                .palette
+                                                                                .error
+                                                                                .main,
+                                                                            isDark
+                                                                                ? 0.16
+                                                                                : 0.1
+                                                                        ),
+                                                                    border: `1px solid ${alpha(
+                                                                        theme
+                                                                            .palette
+                                                                            .error
+                                                                            .main,
+                                                                        0.25
+                                                                    )}`,
+                                                                    color: theme
+                                                                        .palette
+                                                                        .error
+                                                                        .main,
+                                                                }}
+                                                            />
+                                                        </Tooltip>
                                                     ) : null}
 
                                                     <Button
@@ -475,7 +744,11 @@ export default function ReaderFinesPage() {
                                                         startIcon={
                                                             <UploadOutlinedIcon />
                                                         }
-                                                        sx={{ borderRadius: 3 }}
+                                                        sx={{
+                                                            borderRadius:
+                                                                "999px",
+                                                            px: 1.6,
+                                                        }}
                                                         disabled={!canUpload}
                                                         onClick={() =>
                                                             openPay(f)
@@ -496,7 +769,7 @@ export default function ReaderFinesPage() {
                                         <TableCell colSpan={9} sx={{ py: 6 }}>
                                             <Box sx={{ textAlign: "center" }}>
                                                 <Typography
-                                                    sx={{ fontWeight: 900 }}
+                                                    sx={{ fontWeight: 950 }}
                                                 >
                                                     No results
                                                 </Typography>
@@ -522,10 +795,18 @@ export default function ReaderFinesPage() {
                 <UploadReceiptDialog
                     open={openUpload}
                     onClose={() => setOpenUpload(false)}
-                    title={`Upload receipt — ${selectedFine?.id || ""}`}
+                    title={`Upload receipt — ${
+                        selectedFine?.id ? shortId(selectedFine.id) : ""
+                    }`}
                     amountLabel={
                         selectedFine
-                            ? `Amount: ${money(selectedFine.amount)}`
+                            ? `Outstanding: ${moneyPKR(
+                                  Math.max(
+                                      (selectedFine.amount || 0) -
+                                          (selectedFine.amountPaid || 0),
+                                      0
+                                  )
+                              )}`
                             : ""
                     }
                     onSubmit={async (payload) => {

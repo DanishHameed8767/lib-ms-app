@@ -10,7 +10,9 @@ import {
     Chip,
     Button,
     Alert,
+    Stack,
 } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import AppShell from "../../../components/AppShell";
 import PageHeader from "../../../components/PageHeader";
 import { useAuth } from "@/context/AuthContext";
@@ -20,6 +22,14 @@ import {
     fetchReaderDashboardStats,
     fetchMySubscriptionSummary,
 } from "@/lib/supabase/readerApi";
+
+const R = {
+    xs: "10px",
+    sm: "12px",
+    md: "16px",
+    lg: "20px",
+    xl: "24px",
+};
 
 function money(n) {
     const v = Number(n || 0);
@@ -35,6 +45,8 @@ function isoDate(d = new Date()) {
 
 export default function ReaderDashboardPage() {
     const { supabase, user } = useAuth();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
 
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState("");
@@ -47,7 +59,6 @@ export default function ReaderDashboardPage() {
         pendingApprovals: 0,
     });
 
-    // { sub, plan } or null
     const [subInfo, setSubInfo] = React.useState(null);
 
     const load = React.useCallback(
@@ -91,7 +102,6 @@ export default function ReaderDashboardPage() {
             cancel = await load({ silent: false });
         })();
 
-        // Fix tab-switch “hung requests” -> silently resync when visible/focused
         const onVisible = () => {
             if (document.visibilityState === "visible") load({ silent: true });
         };
@@ -112,8 +122,6 @@ export default function ReaderDashboardPage() {
     const membershipValue = React.useMemo(() => {
         if (!subInfo?.sub) return "None";
         const { status, end_date } = subInfo.sub;
-
-        // treat Active but past end_date as Expired for UI
         if (status === "Active" && end_date && String(end_date) < today)
             return "Expired";
         return status || "—";
@@ -144,6 +152,23 @@ export default function ReaderDashboardPage() {
         return { label: `Status: ${status}`, tone: "warn" };
     }, [subInfo, membershipValue]);
 
+    const borderSoft = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.1 : 0.1
+    );
+    const surface = {
+        borderRadius: R.xl,
+        border: `1px solid ${borderSoft}`,
+        background: isDark
+            ? `linear-gradient(180deg, ${alpha("#FFFFFF", 0.05)} 0%, ${alpha(
+                  "#FFFFFF",
+                  0.02
+              )} 100%)`
+            : "#FFFFFF",
+        boxShadow: "none",
+        overflow: "hidden",
+    };
+
     return (
         <RoleGuard allowedRoles={[ROLES.READER]}>
             <AppShell title="Reader Dashboard">
@@ -151,12 +176,25 @@ export default function ReaderDashboardPage() {
                     title="Reader Dashboard"
                     subtitle="Your activity, borrowings and fine status."
                     right={
-                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                        <Stack
+                            direction="row"
+                            spacing={1}
+                            sx={{ flexWrap: "wrap" }}
+                        >
                             <Button
                                 component={Link}
                                 href="/books"
                                 variant="outlined"
-                                sx={{ borderRadius: 3 }}
+                                sx={{
+                                    borderRadius: R.xl,
+                                    borderColor: borderSoft,
+                                    "&:hover": {
+                                        borderColor: alpha(
+                                            theme.palette.primary.main,
+                                            0.45
+                                        ),
+                                    },
+                                }}
                             >
                                 Browse Books
                             </Button>
@@ -164,31 +202,40 @@ export default function ReaderDashboardPage() {
                                 component={Link}
                                 href="/reader/fines"
                                 variant="contained"
-                                sx={{ borderRadius: 3 }}
+                                sx={{
+                                    borderRadius: R.xl,
+                                    boxShadow: "none",
+                                    "&:hover": { boxShadow: "none" },
+                                }}
                             >
                                 View Fines
                             </Button>
-                        </Box>
+                        </Stack>
                     }
                 />
 
                 {error ? (
-                    <Alert severity="error" sx={{ mt: 2, borderRadius: 3 }}>
+                    <Alert severity="error" sx={{ mt: 2, borderRadius: R.lg }}>
                         {error}
                     </Alert>
                 ) : null}
 
+                {/* Stat row */}
                 <Box
                     sx={{
                         mt: 2,
                         display: "grid",
-                        gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr 1fr" },
+                        gridTemplateColumns: {
+                            xs: "1fr",
+                            lg: "repeat(3, 1fr)",
+                        },
                         gap: 2,
                     }}
                 >
                     <StatCard
+                        loading={loading}
                         title="Active Borrowings"
-                        value={loading ? "…" : stats.activeBorrows}
+                        value={stats.activeBorrows}
                         chips={[
                             {
                                 label: `${stats.overdueBorrows} overdue`,
@@ -199,8 +246,9 @@ export default function ReaderDashboardPage() {
                     />
 
                     <StatCard
+                        loading={loading}
                         title="Unpaid / Pending Fines"
-                        value={loading ? "…" : stats.unpaidFinesCount}
+                        value={stats.unpaidFinesCount}
                         chips={[
                             {
                                 label: `Total ${money(stats.unpaidTotal)}`,
@@ -215,8 +263,9 @@ export default function ReaderDashboardPage() {
                     />
 
                     <StatCard
+                        loading={loading}
                         title="Membership"
-                        value={loading ? "…" : membershipValue}
+                        value={membershipValue}
                         subtitle={membershipSubtitle}
                         chips={[membershipChip]}
                         action={{
@@ -226,20 +275,23 @@ export default function ReaderDashboardPage() {
                     />
                 </Box>
 
+                {/* Lower row */}
                 <Box
                     sx={{
                         mt: 2,
                         display: "grid",
-                        gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+                        gridTemplateColumns: { xs: "1fr", lg: "1.2fr 0.8fr" },
                         gap: 2,
                     }}
                 >
-                    <Paper
-                        variant="outlined"
-                        sx={{ borderRadius: 4, overflow: "hidden" }}
-                    >
-                        <Box sx={{ p: 2 }}>
-                            <Typography sx={{ fontWeight: 900 }}>
+                    <Paper variant="outlined" sx={surface}>
+                        <Box sx={{ p: 2.25 }}>
+                            <Typography
+                                sx={{
+                                    fontWeight: 900,
+                                    letterSpacing: "-0.01em",
+                                }}
+                            >
                                 Quick Actions
                             </Typography>
                             <Typography
@@ -249,56 +301,52 @@ export default function ReaderDashboardPage() {
                                 Useful shortcuts
                             </Typography>
                         </Box>
-                        <Divider />
-                        <Box
-                            sx={{
-                                p: 2,
-                                display: "flex",
-                                gap: 1,
-                                flexWrap: "wrap",
-                            }}
-                        >
-                            <Button
-                                component={Link}
-                                href="/books"
-                                variant="contained"
-                                sx={{ borderRadius: 3 }}
+
+                        <Divider sx={{ borderColor: borderSoft }} />
+
+                        <Box sx={{ p: 2.25 }}>
+                            <Box
+                                sx={{
+                                    display: "grid",
+                                    gridTemplateColumns: {
+                                        xs: "1fr",
+                                        sm: "repeat(2, 1fr)",
+                                    },
+                                    gap: 1.25,
+                                }}
                             >
-                                Browse Books
-                            </Button>
-                            <Button
-                                component={Link}
-                                href="/announcements"
-                                variant="outlined"
-                                sx={{ borderRadius: 3 }}
-                            >
-                                Announcements
-                            </Button>
-                            <Button
-                                component={Link}
-                                href="/reader/borrows"
-                                variant="outlined"
-                                sx={{ borderRadius: 3 }}
-                            >
-                                My Borrowings
-                            </Button>
-                            <Button
-                                component={Link}
-                                href="/reader/fines"
-                                variant="outlined"
-                                sx={{ borderRadius: 3 }}
-                            >
-                                My Fines
-                            </Button>
+                                <ActionTile
+                                    href="/books"
+                                    label="Browse Books"
+                                    variant="contained"
+                                />
+                                <ActionTile
+                                    href="/announcements"
+                                    label="Announcements"
+                                    variant="outlined"
+                                />
+                                <ActionTile
+                                    href="/reader/borrows"
+                                    label="My Borrowings"
+                                    variant="outlined"
+                                />
+                                <ActionTile
+                                    href="/reader/fines"
+                                    label="My Fines"
+                                    variant="outlined"
+                                />
+                            </Box>
                         </Box>
                     </Paper>
 
-                    <Paper
-                        variant="outlined"
-                        sx={{ borderRadius: 4, overflow: "hidden" }}
-                    >
-                        <Box sx={{ p: 2 }}>
-                            <Typography sx={{ fontWeight: 900 }}>
+                    <Paper variant="outlined" sx={surface}>
+                        <Box sx={{ p: 2.25 }}>
+                            <Typography
+                                sx={{
+                                    fontWeight: 900,
+                                    letterSpacing: "-0.01em",
+                                }}
+                            >
                                 Status
                             </Typography>
                             <Typography
@@ -308,47 +356,27 @@ export default function ReaderDashboardPage() {
                                 Overview
                             </Typography>
                         </Box>
-                        <Divider />
-                        <Box sx={{ p: 2, display: "grid", gap: 1 }}>
-                            <Chip
+
+                        <Divider sx={{ borderColor: borderSoft }} />
+
+                        <Box sx={{ p: 2.25, display: "grid", gap: 1 }}>
+                            <StatusPill
                                 label={`Active borrows: ${stats.activeBorrows}`}
-                                sx={{ borderRadius: 3, fontWeight: 900 }}
-                                variant="outlined"
+                                tone="neutral"
                             />
-                            <Chip
+                            <StatusPill
                                 label={`Overdue: ${stats.overdueBorrows}`}
-                                sx={{
-                                    borderRadius: 3,
-                                    fontWeight: 900,
-                                    backgroundColor: stats.overdueBorrows
-                                        ? "rgba(231,76,60,0.15)"
-                                        : "rgba(46,204,113,0.15)",
-                                    color: stats.overdueBorrows
-                                        ? "#e74c3c"
-                                        : "#2ecc71",
-                                }}
+                                tone={stats.overdueBorrows ? "danger" : "ok"}
                             />
-                            <Chip
+                            <StatusPill
                                 label={`Unpaid fines: ${
                                     stats.unpaidFinesCount
                                 } (${money(stats.unpaidTotal)})`}
-                                sx={{
-                                    borderRadius: 3,
-                                    fontWeight: 900,
-                                    backgroundColor: stats.unpaidFinesCount
-                                        ? "rgba(255,106,61,0.15)"
-                                        : "rgba(46,204,113,0.15)",
-                                }}
+                                tone={stats.unpaidFinesCount ? "warn" : "ok"}
                             />
-                            <Chip
+                            <StatusPill
                                 label={`Pending receipts: ${stats.pendingApprovals}`}
-                                sx={{
-                                    borderRadius: 3,
-                                    fontWeight: 900,
-                                    backgroundColor: stats.pendingApprovals
-                                        ? "rgba(255,106,61,0.15)"
-                                        : "rgba(46,204,113,0.15)",
-                                }}
+                                tone={stats.pendingApprovals ? "warn" : "ok"}
                             />
                         </Box>
                     </Paper>
@@ -358,64 +386,222 @@ export default function ReaderDashboardPage() {
     );
 }
 
-function StatCard({ title, value, subtitle, chips = [], action }) {
+function ActionTile({ href, label, variant }) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
+    const borderSoft = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.1 : 0.1
+    );
+
+    return (
+        <Button
+            component={Link}
+            href={href}
+            variant={variant}
+            fullWidth
+            sx={{
+                justifyContent: "space-between",
+                borderRadius: R.lg,
+                py: 1.2,
+                px: 1.6,
+                boxShadow: "none",
+                borderColor: variant === "outlined" ? borderSoft : undefined,
+                "&:hover": { boxShadow: "none" },
+            }}
+        >
+            {label}
+            <Box component="span" sx={{ opacity: 0.75 }}>
+                →
+            </Box>
+        </Button>
+    );
+}
+
+function StatusPill({ label, tone = "neutral" }) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
+
+    const map = {
+        neutral: {
+            bg: alpha(isDark ? "#FFFFFF" : "#0F1115", isDark ? 0.06 : 0.04),
+            fg: "text.primary",
+            border: alpha(isDark ? "#FFFFFF" : "#0F1115", 0.1),
+        },
+        ok: {
+            bg: alpha(theme.palette.success.main, isDark ? 0.18 : 0.12),
+            fg: theme.palette.success.main,
+            border: alpha(theme.palette.success.main, 0.28),
+        },
+        warn: {
+            bg: alpha(theme.palette.primary.main, isDark ? 0.16 : 0.1),
+            fg: theme.palette.primary.main,
+            border: alpha(theme.palette.primary.main, 0.26),
+        },
+        danger: {
+            bg: alpha(theme.palette.error.main, isDark ? 0.18 : 0.12),
+            fg: theme.palette.error.main,
+            border: alpha(theme.palette.error.main, 0.3),
+        },
+    };
+
+    const t = map[tone] || map.neutral;
+
+    return (
+        <Chip
+            label={label}
+            sx={{
+                height: 34,
+                borderRadius: "999px",
+                fontWeight: 850,
+                bgcolor: t.bg,
+                color: t.fg,
+                border: `1px solid ${t.border}`,
+                justifyContent: "flex-start",
+                "& .MuiChip-label": { px: 1.25 },
+            }}
+            variant="filled"
+        />
+    );
+}
+
+function StatCard({ loading, title, value, subtitle, chips = [], action }) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
+
+    const borderSoft = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.1 : 0.1
+    );
     const tones = {
-        ok: { bg: "rgba(46,204,113,0.15)", fg: "#2ecc71" },
-        warn: { bg: "rgba(255,106,61,0.15)", fg: "primary.main" },
-        danger: { bg: "rgba(231,76,60,0.15)", fg: "#e74c3c" },
+        ok: {
+            bg: alpha(theme.palette.success.main, isDark ? 0.18 : 0.12),
+            fg: theme.palette.success.main,
+            border: alpha(theme.palette.success.main, 0.28),
+        },
+        warn: {
+            bg: alpha(theme.palette.primary.main, isDark ? 0.16 : 0.1),
+            fg: theme.palette.primary.main,
+            border: alpha(theme.palette.primary.main, 0.26),
+        },
+        danger: {
+            bg: alpha(theme.palette.error.main, isDark ? 0.18 : 0.12),
+            fg: theme.palette.error.main,
+            border: alpha(theme.palette.error.main, 0.3),
+        },
+        neutral: {
+            bg: alpha(isDark ? "#FFFFFF" : "#0F1115", isDark ? 0.06 : 0.04),
+            fg: "text.primary",
+            border: alpha(isDark ? "#FFFFFF" : "#0F1115", 0.1),
+        },
     };
 
     return (
-        <Paper variant="outlined" sx={{ borderRadius: 4, overflow: "hidden" }}>
+        <Paper
+            variant="outlined"
+            sx={{
+                borderRadius: R.xl,
+                overflow: "hidden",
+                borderColor: borderSoft,
+                background: isDark
+                    ? `linear-gradient(180deg, ${alpha(
+                          "#FFFFFF",
+                          0.05
+                      )} 0%, ${alpha("#FFFFFF", 0.02)} 100%)`
+                    : "#FFFFFF",
+                boxShadow: "none",
+            }}
+        >
             <Box
                 sx={{
-                    p: 2,
+                    p: 2.25,
                     display: "flex",
                     justifyContent: "space-between",
                     gap: 2,
                 }}
             >
-                <Box>
-                    <Typography sx={{ fontWeight: 900 }}>{title}</Typography>
+                <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                        sx={{ fontWeight: 900, letterSpacing: "-0.01em" }}
+                        noWrap
+                    >
+                        {title}
+                    </Typography>
                     {subtitle ? (
                         <Typography
                             variant="body2"
                             sx={{ color: "text.secondary", mt: 0.25 }}
+                            noWrap
                         >
                             {subtitle}
                         </Typography>
                     ) : null}
                 </Box>
-                <Typography sx={{ fontWeight: 900, fontSize: 26 }}>
-                    {value}
+
+                <Typography
+                    sx={{
+                        fontWeight: 950,
+                        fontSize: 30,
+                        letterSpacing: "-0.02em",
+                    }}
+                >
+                    {loading ? "…" : value}
                 </Typography>
             </Box>
 
-            <Divider />
+            <Divider sx={{ borderColor: borderSoft }} />
 
-            <Box sx={{ p: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
+            <Box
+                sx={{
+                    p: 2.0,
+                    display: "flex",
+                    gap: 1,
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                }}
+            >
                 {chips.map((c) => {
-                    const t = tones[c.tone] || tones.ok;
+                    const t = tones[c.tone] || tones.neutral;
                     return (
                         <Chip
                             key={c.label}
                             label={c.label}
                             sx={{
-                                borderRadius: 3,
-                                fontWeight: 900,
-                                backgroundColor: t.bg,
+                                height: 30,
+                                borderRadius: "999px",
+                                fontWeight: 850,
+                                bgcolor: t.bg,
                                 color: t.fg,
+                                border: `1px solid ${t.border}`,
+                                "& .MuiChip-label": { px: 1.1 },
                             }}
                         />
                     );
                 })}
+
                 <Box sx={{ flex: 1 }} />
+
                 {action ? (
                     <Button
                         component={Link}
                         href={action.href}
                         variant="outlined"
-                        sx={{ borderRadius: 3 }}
+                        sx={{
+                            borderRadius: "999px",
+                            px: 1.8,
+                            borderColor: alpha(theme.palette.primary.main, 0.4),
+                            color: "primary.main",
+                            "&:hover": {
+                                borderColor: alpha(
+                                    theme.palette.primary.main,
+                                    0.65
+                                ),
+                                backgroundColor: alpha(
+                                    theme.palette.primary.main,
+                                    isDark ? 0.1 : 0.06
+                                ),
+                            },
+                        }}
                     >
                         {action.label}
                     </Button>

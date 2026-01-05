@@ -26,6 +26,14 @@ import { ROLES } from "../../../lib/roles";
 import { useAuth } from "@/context/AuthContext";
 import PlanEditDrawer from "../../../components/PlanEditDrawer";
 
+const R = {
+    paper: 14,
+    soft: 12,
+    btn: 12,
+    chip: 999,
+    chipSoft: 10,
+};
+
 function normalizePlan(p) {
     return {
         id: p?.id || "",
@@ -56,7 +64,6 @@ export default function AdminPlansPage() {
     const [saving, setSaving] = React.useState(false);
 
     const load = React.useCallback(async () => {
-        // Important: don’t get stuck in loading
         if (!supabase) {
             setLoading(false);
             return;
@@ -152,6 +159,8 @@ export default function AdminPlansPage() {
                 is_active: Boolean(editing.is_active),
             };
 
+            if (!payload.name) throw new Error("Name is required.");
+
             if (editing.id) {
                 const { data, error: uErr } = await supabase
                     .from("membership_plans")
@@ -227,14 +236,14 @@ export default function AdminPlansPage() {
     const toggleActiveInline = async (plan) => {
         if (!supabase) return;
 
+        const nextActive = !plan.is_active;
+
         // Optimistic UI
         setRows((prev) =>
             prev.map((x) =>
-                x.id === plan.id ? { ...x, is_active: !x.is_active } : x
+                x.id === plan.id ? { ...x, is_active: nextActive } : x
             )
         );
-
-        const nextActive = !plan.is_active;
 
         const { error: uErr } = await supabase
             .from("membership_plans")
@@ -262,7 +271,7 @@ export default function AdminPlansPage() {
                         <Button
                             variant="contained"
                             startIcon={<AddOutlinedIcon />}
-                            sx={{ borderRadius: 3 }}
+                            sx={{ borderRadius: `${R.btn}px` }}
                             onClick={openCreate}
                             disabled={loading}
                         >
@@ -272,7 +281,10 @@ export default function AdminPlansPage() {
                 />
 
                 {error ? (
-                    <Alert severity="error" sx={{ mt: 2 }}>
+                    <Alert
+                        severity="error"
+                        sx={{ mt: 2, borderRadius: `${R.soft}px` }}
+                    >
                         {error}
                     </Alert>
                 ) : null}
@@ -282,11 +294,12 @@ export default function AdminPlansPage() {
                     sx={{
                         mt: 2,
                         p: 1.25,
-                        borderRadius: 4,
+                        borderRadius: `${R.paper}px`,
                         display: "flex",
                         gap: 1,
                         flexWrap: "wrap",
                         alignItems: "center",
+                        minWidth: 0,
                     }}
                 >
                     <TextField
@@ -294,19 +307,29 @@ export default function AdminPlansPage() {
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
                         placeholder="Name / description / id…"
-                        sx={{ width: { xs: "100%", sm: 520 } }}
+                        sx={{
+                            width: { xs: "100%", sm: 520 },
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: `${R.soft}px`,
+                            },
+                        }}
                     />
-                    <Box sx={{ flex: 1 }} />
+                    <Box sx={{ flex: 1, minWidth: 0 }} />
                     <Chip
                         label={`${filtered.length} plan(s)`}
-                        sx={{ borderRadius: 3, fontWeight: 900 }}
+                        sx={{ borderRadius: `${R.chip}px`, fontWeight: 900 }}
                         variant="outlined"
                     />
                 </Paper>
 
                 <Paper
                     variant="outlined"
-                    sx={{ mt: 2, borderRadius: 4, overflow: "hidden" }}
+                    sx={{
+                        mt: 2,
+                        borderRadius: `${R.paper}px`,
+                        overflow: "hidden",
+                        minWidth: 0,
+                    }}
                 >
                     <Box sx={{ p: 2 }}>
                         <Typography sx={{ fontWeight: 900 }}>Plans</Typography>
@@ -321,7 +344,14 @@ export default function AdminPlansPage() {
                     <Divider />
 
                     {loading ? (
-                        <Box sx={{ p: 2, display: "flex", gap: 1.25 }}>
+                        <Box
+                            sx={{
+                                p: 2,
+                                display: "flex",
+                                gap: 1.25,
+                                alignItems: "center",
+                            }}
+                        >
                             <CircularProgress size={18} />
                             <Typography sx={{ fontWeight: 800 }}>
                                 Loading plans…
@@ -329,7 +359,14 @@ export default function AdminPlansPage() {
                         </Box>
                     ) : (
                         <Box sx={{ overflowX: "auto" }}>
-                            <Table size="small" sx={{ minWidth: 1100 }}>
+                            <Table
+                                size="small"
+                                sx={{
+                                    minWidth: 1100,
+                                    "& th": { fontWeight: 900 },
+                                    "& td": { verticalAlign: "middle" },
+                                }}
+                            >
                                 <TableHead>
                                     <TableRow>
                                         <TableCell>Name</TableCell>
@@ -402,7 +439,9 @@ export default function AdminPlansPage() {
                                                 <Button
                                                     size="small"
                                                     variant="contained"
-                                                    sx={{ borderRadius: 3 }}
+                                                    sx={{
+                                                        borderRadius: `${R.btn}px`,
+                                                    }}
                                                     onClick={() => openEdit(p)}
                                                 >
                                                     Edit

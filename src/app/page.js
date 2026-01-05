@@ -13,6 +13,8 @@ import {
     Divider,
     Stack,
 } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
+
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import AutoStoriesOutlinedIcon from "@mui/icons-material/AutoStoriesOutlined";
 import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
@@ -20,35 +22,67 @@ import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import LocalLibraryOutlinedIcon from "@mui/icons-material/LocalLibraryOutlined";
 
+const R = {
+    xs: "10px",
+    sm: "12px",
+    md: "16px",
+    lg: "20px",
+    xl: "24px",
+};
+
 function FeatureCard({ icon, title, desc }) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
+
+    const surface = {
+        borderRadius: R.lg,
+        p: 2.25,
+        height: "100%",
+        border: `1px solid ${alpha(
+            isDark ? "#FFFFFF" : "#0F1115",
+            isDark ? 0.1 : 0.1
+        )}`,
+        background: isDark
+            ? `linear-gradient(180deg, ${alpha("#FFFFFF", 0.06)} 0%, ${alpha(
+                  "#FFFFFF",
+                  0.02
+              )} 100%)`
+            : `linear-gradient(180deg, ${alpha("#FFFFFF", 0.95)} 0%, ${alpha(
+                  "#FFFFFF",
+                  0.86
+              )} 100%)`,
+        backdropFilter: "blur(10px)",
+        boxShadow: isDark
+            ? "0 12px 26px rgba(0,0,0,0.35)"
+            : "0 12px 26px rgba(18,18,18,0.08)",
+    };
+
     return (
-        <Paper
-            variant="outlined"
-            sx={{
-                borderRadius: 4,
-                p: 2.25,
-                height: "100%",
-                background:
-                    "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
-                borderColor: "rgba(255,255,255,0.10)",
-                backdropFilter: "blur(10px)",
-            }}
-        >
+        <Paper variant="outlined" sx={surface}>
             <Box
                 sx={{
                     width: 44,
                     height: 44,
                     display: "grid",
                     placeItems: "center",
-                    borderRadius: 3,
-                    backgroundColor: "rgba(255,106,61,0.15)",
-                    border: "1px solid rgba(255,106,61,0.25)",
+                    borderRadius: R.md,
+                    backgroundColor: alpha(
+                        theme.palette.primary.main,
+                        isDark ? 0.16 : 0.12
+                    ),
+                    border: `1px solid ${alpha(
+                        theme.palette.primary.main,
+                        isDark ? 0.28 : 0.22
+                    )}`,
                     mb: 1.25,
                 }}
             >
                 {icon}
             </Box>
-            <Typography sx={{ fontWeight: 900 }}>{title}</Typography>
+
+            <Typography sx={{ fontWeight: 800, letterSpacing: "-0.01em" }}>
+                {title}
+            </Typography>
             <Typography
                 variant="body2"
                 sx={{ color: "text.secondary", mt: 0.5 }}
@@ -59,7 +93,110 @@ function FeatureCard({ icon, title, desc }) {
     );
 }
 
+function MiniRow({ icon, title, sub }) {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
+
+    return (
+        <Box sx={{ display: "flex", gap: 1.25, alignItems: "flex-start" }}>
+            <Box
+                sx={{
+                    width: 36,
+                    height: 36,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: R.md,
+                    backgroundColor: isDark
+                        ? alpha("#FFFFFF", 0.06)
+                        : alpha("#0F1115", 0.04),
+                    border: `1px solid ${alpha(
+                        isDark ? "#FFFFFF" : "#0F1115",
+                        isDark ? 0.1 : 0.1
+                    )}`,
+                    mt: 0.25,
+                }}
+            >
+                {icon}
+            </Box>
+
+            <Box>
+                <Typography sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+                    {title}
+                </Typography>
+                <Typography
+                    variant="body2"
+                    sx={{ color: "text.secondary", mt: 0.25 }}
+                >
+                    {sub}
+                </Typography>
+            </Box>
+        </Box>
+    );
+}
+
 export default function LandingPage() {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
+
+    const borderSoft = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.1 : 0.1
+    );
+
+    const heroBg = isDark
+        ? [
+              `radial-gradient(1200px 600px at 18% 12%, ${alpha(
+                  theme.palette.primary.main,
+                  0.28
+              )} 0%, rgba(0,0,0,0) 60%)`,
+              `radial-gradient(900px 600px at 82% 20%, ${alpha(
+                  "#3B82F6",
+                  0.16
+              )} 0%, rgba(0,0,0,0) 55%)`,
+              `radial-gradient(900px 600px at 45% 100%, ${alpha(
+                  "#2BB673",
+                  0.12
+              )} 0%, rgba(0,0,0,0) 55%)`,
+              `linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.30) 100%)`,
+          ].join(",")
+        : [
+              `radial-gradient(1200px 600px at 18% 12%, ${alpha(
+                  theme.palette.primary.main,
+                  0.22
+              )} 0%, rgba(255,255,255,0) 60%)`,
+              `radial-gradient(900px 600px at 82% 20%, ${alpha(
+                  "#3B82F6",
+                  0.1
+              )} 0%, rgba(255,255,255,0) 55%)`,
+              `radial-gradient(900px 600px at 45% 100%, ${alpha(
+                  "#2BB673",
+                  0.08
+              )} 0%, rgba(255,255,255,0) 55%)`,
+              `linear-gradient(180deg, ${alpha("#FFFFFF", 0.8)} 0%, ${alpha(
+                  "#FFFFFF",
+                  0.25
+              )} 100%)`,
+          ].join(",");
+
+    const glassCard = {
+        borderRadius: R.xl,
+        overflow: "hidden",
+        border: `1px solid ${borderSoft}`,
+        background: isDark
+            ? `linear-gradient(180deg, ${alpha("#FFFFFF", 0.07)} 0%, ${alpha(
+                  "#FFFFFF",
+                  0.025
+              )} 100%)`
+            : `linear-gradient(180deg, ${alpha("#FFFFFF", 0.92)} 0%, ${alpha(
+                  "#FFFFFF",
+                  0.78
+              )} 100%)`,
+        backdropFilter: "blur(12px)",
+        boxShadow: isDark
+            ? "0 18px 40px rgba(0,0,0,0.45)"
+            : "0 18px 40px rgba(18,18,18,0.10)",
+    };
+
     return (
         <Box
             sx={{
@@ -67,27 +204,35 @@ export default function LandingPage() {
                 color: "text.primary",
                 position: "relative",
                 overflow: "hidden",
-                background:
-                    "radial-gradient(1200px 600px at 20% 10%, rgba(255,106,61,0.25) 0%, rgba(0,0,0,0) 60%), radial-gradient(1000px 700px at 85% 25%, rgba(52,152,219,0.18) 0%, rgba(0,0,0,0) 55%), radial-gradient(900px 600px at 40% 100%, rgba(46,204,113,0.14) 0%, rgba(0,0,0,0) 55%)",
+                background: heroBg,
             }}
         >
-            {/* subtle grid */}
+            {/* subtle grid (softer + better mask) */}
             <Box
                 aria-hidden
                 sx={{
                     position: "absolute",
                     inset: 0,
-                    opacity: 0.25,
-                    backgroundImage:
-                        "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
+                    opacity: isDark ? 0.18 : 0.22,
+                    backgroundImage: `linear-gradient(${alpha(
+                        isDark ? "#FFFFFF" : "#0F1115",
+                        0.08
+                    )} 1px, transparent 1px),
+                            linear-gradient(90deg, ${alpha(
+                                isDark ? "#FFFFFF" : "#0F1115",
+                                0.08
+                            )} 1px, transparent 1px)`,
                     backgroundSize: "48px 48px",
+                    WebkitMaskImage:
+                        "radial-gradient(closest-side, rgba(0,0,0,1), rgba(0,0,0,0))",
                     maskImage:
                         "radial-gradient(closest-side, rgba(0,0,0,1), rgba(0,0,0,0))",
+                    pointerEvents: "none",
                 }}
             />
 
-            {/* Top bar */}
             <Container maxWidth="lg" sx={{ position: "relative" }}>
+                {/* Top bar */}
                 <Box
                     sx={{
                         py: 2.5,
@@ -97,24 +242,37 @@ export default function LandingPage() {
                         gap: 2,
                     }}
                 >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.25,
+                        }}
+                    >
                         <Box
                             sx={{
                                 width: 40,
                                 height: 40,
-                                borderRadius: 3,
+                                borderRadius: R.md,
                                 display: "grid",
                                 placeItems: "center",
-                                backgroundColor: "rgba(255,106,61,0.15)",
-                                border: "1px solid rgba(255,106,61,0.25)",
+                                backgroundColor: alpha(
+                                    theme.palette.primary.main,
+                                    isDark ? 0.16 : 0.1
+                                ),
+                                border: `1px solid ${alpha(
+                                    theme.palette.primary.main,
+                                    isDark ? 0.28 : 0.2
+                                )}`,
                             }}
                         >
                             <LocalLibraryOutlinedIcon />
                         </Box>
+
                         <Typography
                             sx={{
                                 fontWeight: 900,
-                                letterSpacing: 0.2,
+                                letterSpacing: 0.4,
                                 fontSize: 18,
                             }}
                         >
@@ -132,16 +290,32 @@ export default function LandingPage() {
                             component={Link}
                             href="/login"
                             variant="outlined"
-                            sx={{ borderRadius: 3 }}
+                            sx={{
+                                borderRadius: R.xl,
+                                px: 2,
+                                borderColor: borderSoft,
+                                "&:hover": {
+                                    borderColor: alpha(
+                                        theme.palette.primary.main,
+                                        0.45
+                                    ),
+                                },
+                            }}
                         >
                             Sign in
                         </Button>
+
                         <Button
                             component={Link}
                             href="/login"
                             variant="contained"
                             endIcon={<ArrowForwardRoundedIcon />}
-                            sx={{ borderRadius: 3 }}
+                            sx={{
+                                borderRadius: R.xl,
+                                px: 2.2,
+                                boxShadow: "none",
+                                "&:hover": { boxShadow: "none" },
+                            }}
                         >
                             Get started
                         </Button>
@@ -163,20 +337,27 @@ export default function LandingPage() {
                         <Chip
                             label="Modern library management"
                             sx={{
-                                borderRadius: 3,
-                                fontWeight: 900,
-                                backgroundColor: "rgba(255,106,61,0.14)",
-                                border: "1px solid rgba(255,106,61,0.22)",
+                                borderRadius: R.xl,
+                                fontWeight: 800,
+                                letterSpacing: "-0.01em",
+                                backgroundColor: alpha(
+                                    theme.palette.primary.main,
+                                    isDark ? 0.14 : 0.1
+                                ),
+                                border: `1px solid ${alpha(
+                                    theme.palette.primary.main,
+                                    isDark ? 0.22 : 0.18
+                                )}`,
                                 mb: 2,
                             }}
                         />
 
                         <Typography
                             sx={{
-                                fontWeight: 1000,
+                                fontWeight: 900,
                                 lineHeight: 1.05,
                                 fontSize: { xs: 40, sm: 52, md: 60 },
-                                letterSpacing: -0.6,
+                                letterSpacing: "-0.04em",
                             }}
                         >
                             Borrow, manage, and track your library —{" "}
@@ -215,44 +396,50 @@ export default function LandingPage() {
                                 variant="contained"
                                 size="large"
                                 endIcon={<ArrowForwardRoundedIcon />}
-                                sx={{ borderRadius: 3, px: 2.5, py: 1.25 }}
+                                sx={{
+                                    borderRadius: R.xl,
+                                    px: 2.6,
+                                    py: 1.25,
+                                    boxShadow: "none",
+                                    "&:hover": { boxShadow: "none" },
+                                }}
                             >
                                 Sign in to Libra
                             </Button>
+
                             <Button
                                 component={Link}
                                 href="/books"
                                 variant="outlined"
                                 size="large"
-                                sx={{ borderRadius: 3, px: 2.5, py: 1.25 }}
+                                sx={{
+                                    borderRadius: R.xl,
+                                    px: 2.6,
+                                    py: 1.25,
+                                    borderColor: borderSoft,
+                                    "&:hover": {
+                                        borderColor: alpha(
+                                            theme.palette.primary.main,
+                                            0.45
+                                        ),
+                                    },
+                                }}
                             >
                                 Browse books
                             </Button>
                         </Stack>
 
-                        <Box sx={{ mt: 3 }}>
-                            <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary" }}
-                            >
-                                Secure auth • Role-based access • Receipt-based
-                                payments
-                            </Typography>
-                        </Box>
+                        <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary", mt: 3 }}
+                        >
+                            Secure auth • Role-based access • Receipt-based
+                            payments
+                        </Typography>
                     </Box>
 
                     {/* Right hero card */}
-                    <Paper
-                        variant="outlined"
-                        sx={{
-                            borderRadius: 5,
-                            overflow: "hidden",
-                            borderColor: "rgba(255,255,255,0.10)",
-                            background:
-                                "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
-                            backdropFilter: "blur(12px)",
-                        }}
-                    >
+                    <Paper variant="outlined" sx={glassCard}>
                         <Box
                             sx={{
                                 p: 2.25,
@@ -262,32 +449,36 @@ export default function LandingPage() {
                                 gap: 2,
                             }}
                         >
-                            <Typography sx={{ fontWeight: 900 }}>
+                            <Typography
+                                sx={{
+                                    fontWeight: 900,
+                                    letterSpacing: "-0.01em",
+                                }}
+                            >
                                 What you can do
                             </Typography>
+
                             <Chip
                                 size="small"
                                 label="Live in-app"
                                 sx={{
-                                    borderRadius: 2,
-                                    fontWeight: 900,
-                                    backgroundColor: "rgba(46,204,113,0.14)",
-                                    border: "1px solid rgba(46,204,113,0.22)",
+                                    borderRadius: R.xl,
+                                    fontWeight: 800,
+                                    backgroundColor: alpha(
+                                        "#2BB673",
+                                        isDark ? 0.16 : 0.12
+                                    ),
+                                    border: `1px solid ${alpha(
+                                        "#2BB673",
+                                        isDark ? 0.26 : 0.22
+                                    )}`,
                                 }}
                             />
                         </Box>
 
-                        <Divider
-                            sx={{ borderColor: "rgba(255,255,255,0.10)" }}
-                        />
+                        <Divider sx={{ borderColor: borderSoft }} />
 
-                        <Box
-                            sx={{
-                                p: 2.25,
-                                display: "grid",
-                                gap: 1.25,
-                            }}
-                        >
+                        <Box sx={{ p: 2.25, display: "grid", gap: 1.25 }}>
                             <MiniRow
                                 icon={<MenuBookOutlinedIcon fontSize="small" />}
                                 title="Discover & borrow"
@@ -312,9 +503,7 @@ export default function LandingPage() {
                             />
                         </Box>
 
-                        <Divider
-                            sx={{ borderColor: "rgba(255,255,255,0.10)" }}
-                        />
+                        <Divider sx={{ borderColor: borderSoft }} />
 
                         <Box sx={{ p: 2.25, display: "flex", gap: 1 }}>
                             <Button
@@ -322,7 +511,11 @@ export default function LandingPage() {
                                 href="/login"
                                 variant="contained"
                                 fullWidth
-                                sx={{ borderRadius: 3 }}
+                                sx={{
+                                    borderRadius: R.xl,
+                                    boxShadow: "none",
+                                    "&:hover": { boxShadow: "none" },
+                                }}
                             >
                                 Sign in
                             </Button>
@@ -331,7 +524,16 @@ export default function LandingPage() {
                                 href="/policies"
                                 variant="outlined"
                                 fullWidth
-                                sx={{ borderRadius: 3 }}
+                                sx={{
+                                    borderRadius: R.xl,
+                                    borderColor: borderSoft,
+                                    "&:hover": {
+                                        borderColor: alpha(
+                                            theme.palette.primary.main,
+                                            0.45
+                                        ),
+                                    },
+                                }}
                             >
                                 View policies
                             </Button>
@@ -362,10 +564,15 @@ export default function LandingPage() {
                                 A clean UI with the essentials — fast.
                             </Typography>
                         </Box>
+
                         <Chip
                             label="Role-based navigation"
                             variant="outlined"
-                            sx={{ borderRadius: 3, fontWeight: 900 }}
+                            sx={{
+                                borderRadius: R.xl,
+                                fontWeight: 800,
+                                borderColor: borderSoft,
+                            }}
                         />
                     </Box>
 
@@ -412,7 +619,7 @@ export default function LandingPage() {
                             alignItems: "center",
                             flexWrap: "wrap",
                             gap: 2,
-                            borderTop: "1px solid rgba(255,255,255,0.10)",
+                            borderTop: `1px solid ${borderSoft}`,
                         }}
                     >
                         <Typography
@@ -429,7 +636,7 @@ export default function LandingPage() {
                                 href="/announcements"
                                 size="small"
                                 variant="text"
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: R.xl }}
                             >
                                 Announcements
                             </Button>
@@ -438,7 +645,7 @@ export default function LandingPage() {
                                 href="/policies"
                                 size="small"
                                 variant="text"
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: R.xl }}
                             >
                                 Policies
                             </Button>
@@ -447,7 +654,10 @@ export default function LandingPage() {
                                 href="/login"
                                 size="small"
                                 variant="outlined"
-                                sx={{ borderRadius: 3 }}
+                                sx={{
+                                    borderRadius: R.xl,
+                                    borderColor: borderSoft,
+                                }}
                             >
                                 Sign in
                             </Button>
@@ -455,44 +665,6 @@ export default function LandingPage() {
                     </Box>
                 </Box>
             </Container>
-        </Box>
-    );
-}
-
-function MiniRow({ icon, title, sub }) {
-    return (
-        <Box
-            sx={{
-                display: "flex",
-                gap: 1.25,
-                alignItems: "flex-start",
-            }}
-        >
-            <Box
-                sx={{
-                    width: 34,
-                    height: 34,
-                    display: "grid",
-                    placeItems: "center",
-                    borderRadius: 2.5,
-                    backgroundColor: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    mt: 0.25,
-                }}
-            >
-                {icon}
-            </Box>
-            <Box>
-                <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }}>
-                    {title}
-                </Typography>
-                <Typography
-                    variant="body2"
-                    sx={{ color: "text.secondary", mt: 0.25 }}
-                >
-                    {sub}
-                </Typography>
-            </Box>
         </Box>
     );
 }

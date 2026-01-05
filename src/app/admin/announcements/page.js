@@ -28,6 +28,14 @@ import RoleGuard from "@/components/RoleGuard";
 import { ROLES } from "../../../lib/roles";
 import { useAuth } from "@/context/AuthContext";
 
+/** ✅ consistent radius (avoid MUI numeric multiplier “weird rounding”) */
+const R = {
+    card: "14px",
+    soft: "12px",
+    btn: "12px",
+    chip: "999px",
+};
+
 function isoDate(d = new Date()) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -37,7 +45,7 @@ function isoDate(d = new Date()) {
 
 function addDaysISO(days) {
     const d = new Date();
-    d.setDate(d.getDate() + days);
+    d.setDate(d.getDate() + Number(days || 0));
     return isoDate(d);
 }
 
@@ -48,13 +56,24 @@ function StatusChip({ isActive }) {
             size="small"
             label={active ? "Active" : "Archived"}
             sx={{
-                borderRadius: 2,
+                borderRadius: R.chip,
                 fontWeight: 900,
                 backgroundColor: active
                     ? "rgba(46,204,113,0.15)"
                     : "rgba(160,160,160,0.18)",
                 color: active ? "#2ecc71" : "text.secondary",
             }}
+        />
+    );
+}
+
+function DateChip({ value }) {
+    return (
+        <Chip
+            size="small"
+            label={value || "—"}
+            sx={{ borderRadius: R.chip, fontWeight: 900 }}
+            variant="outlined"
         />
     );
 }
@@ -89,7 +108,7 @@ export default function AdminAnnouncementsPage() {
                     .limit(500);
 
                 if (aErr) throw aErr;
-                setRows(data || []);
+                setRows(Array.isArray(data) ? data : []);
             } catch (e) {
                 setError(e?.message || "Failed to load announcements");
                 setRows([]);
@@ -125,7 +144,7 @@ export default function AdminAnnouncementsPage() {
 
     const filtered = React.useMemo(() => {
         const query = q.trim().toLowerCase();
-        if (!query) return rows;
+        if (!query) return rows || [];
         return (rows || []).filter((a) => {
             return (
                 String(a.title || "")
@@ -172,8 +191,8 @@ export default function AdminAnnouncementsPage() {
         const description = String(editing.description || "").trim();
         const expirationDate = editing.expirationDate || null;
 
-        if (!title) return alert("Title is required");
-        if (!description) return alert("Description is required");
+        if (!title) return window.alert("Title is required");
+        if (!description) return window.alert("Description is required");
 
         setSaving(true);
         try {
@@ -195,7 +214,6 @@ export default function AdminAnnouncementsPage() {
                         title,
                         description,
                         expiration_date: expirationDate,
-                        // Allow toggling active from drawer state if you later add UI for it
                         is_active: Boolean(editing.is_active),
                         archived_at: Boolean(editing.is_active)
                             ? null
@@ -210,7 +228,7 @@ export default function AdminAnnouncementsPage() {
             setEditing(null);
             await load({ silent: false });
         } catch (e) {
-            alert(e?.message || "Save failed");
+            window.alert(e?.message || "Save failed");
         } finally {
             setSaving(false);
         }
@@ -240,7 +258,7 @@ export default function AdminAnnouncementsPage() {
             setEditing(null);
             await load({ silent: false });
         } catch (e) {
-            alert(e?.message || "Archive failed");
+            window.alert(e?.message || "Archive failed");
         } finally {
             setSaving(false);
         }
@@ -249,238 +267,281 @@ export default function AdminAnnouncementsPage() {
     return (
         <RoleGuard allowedRoles={[ROLES.ADMIN]}>
             <AppShell title="Admin Announcements">
-                <PageHeader
-                    title="Announcements"
-                    subtitle="Create time-bound notices shown to users."
-                    right={
-                        <Button
-                            variant="contained"
-                            startIcon={<AddOutlinedIcon />}
-                            sx={{ borderRadius: 3 }}
-                            onClick={openCreate}
-                            disabled={saving}
-                        >
-                            New Announcement
-                        </Button>
-                    }
-                />
-
-                {error ? (
-                    <Alert severity="error" sx={{ mt: 2 }}>
-                        {error}
-                    </Alert>
-                ) : null}
-
-                <Paper
-                    variant="outlined"
-                    sx={{
-                        mt: 2,
-                        p: 1.25,
-                        borderRadius: 4,
-                        display: "flex",
-                        gap: 1,
-                        flexWrap: "wrap",
-                        alignItems: "center",
-                    }}
-                >
-                    <TextField
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                        placeholder="Search title / content / expiry…"
-                        sx={{ width: { xs: "100%", sm: 520 } }}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon fontSize="small" />
-                                </InputAdornment>
-                            ),
-                        }}
+                {/* ✅ prevent page overflow / weird horizontal scroll */}
+                <Box sx={{ minWidth: 0, overflowX: "hidden" }}>
+                    <PageHeader
+                        title="Announcements"
+                        subtitle="Create time-bound notices shown to users."
+                        right={
+                            <Button
+                                variant="contained"
+                                startIcon={<AddOutlinedIcon />}
+                                sx={{ borderRadius: R.btn }}
+                                onClick={openCreate}
+                                disabled={saving}
+                            >
+                                New Announcement
+                            </Button>
+                        }
                     />
-                    <Box sx={{ flex: 1 }} />
-                    <Chip
-                        icon={<CampaignOutlinedIcon />}
-                        label={`${loading ? "…" : filtered.length} item(s)`}
-                        sx={{ borderRadius: 3, fontWeight: 900 }}
+
+                    {error ? (
+                        <Alert
+                            severity="error"
+                            sx={{ mt: 2, borderRadius: R.soft }}
+                        >
+                            {error}
+                        </Alert>
+                    ) : null}
+
+                    <Paper
                         variant="outlined"
-                    />
-                </Paper>
-
-                <Paper
-                    variant="outlined"
-                    sx={{ mt: 2, borderRadius: 4, overflow: "hidden" }}
-                >
-                    <Box sx={{ p: 2 }}>
-                        <Typography sx={{ fontWeight: 900 }}>
-                            All Announcements
-                        </Typography>
-                        <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary", mt: 0.25 }}
-                        >
-                            Live data • `announcements` table
-                        </Typography>
-                    </Box>
-
-                    <Divider />
-
-                    {loading ? (
-                        <Box
-                            sx={{
-                                p: 2,
-                                display: "flex",
-                                gap: 1.25,
-                                alignItems: "center",
+                        sx={{
+                            mt: 2,
+                            p: 1.25,
+                            borderRadius: R.card,
+                            display: "flex",
+                            gap: 1,
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            minWidth: 0,
+                        }}
+                    >
+                        <TextField
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            placeholder="Search title / content / expiry…"
+                            sx={{ width: { xs: "100%", sm: 520 }, minWidth: 0 }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon fontSize="small" />
+                                    </InputAdornment>
+                                ),
                             }}
-                        >
-                            <CircularProgress size={18} />
+                        />
+                        <Box sx={{ flex: 1, minWidth: 0 }} />
+                        <Chip
+                            icon={<CampaignOutlinedIcon />}
+                            label={`${loading ? "…" : filtered.length} item(s)`}
+                            sx={{ borderRadius: R.chip, fontWeight: 900 }}
+                            variant="outlined"
+                        />
+                    </Paper>
+
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            mt: 2,
+                            borderRadius: R.card,
+                            overflow: "hidden",
+                            minWidth: 0,
+                        }}
+                    >
+                        <Box sx={{ p: 2 }}>
                             <Typography sx={{ fontWeight: 900 }}>
-                                Loading…
+                                All Announcements
+                            </Typography>
+                            <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary", mt: 0.25 }}
+                            >
+                                Live data • `announcements` table
                             </Typography>
                         </Box>
-                    ) : (
-                        <Box sx={{ overflowX: "auto" }}>
-                            <Table size="small" sx={{ minWidth: 980 }}>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Title</TableCell>
-                                        <TableCell>Expires</TableCell>
-                                        <TableCell>Status</TableCell>
-                                        <TableCell>Created</TableCell>
-                                        <TableCell align="right">
-                                            Action
-                                        </TableCell>
-                                    </TableRow>
-                                </TableHead>
 
-                                <TableBody>
-                                    {filtered.map((a) => (
-                                        <TableRow key={a.id} hover>
-                                            <TableCell>
-                                                <Typography
-                                                    sx={{ fontWeight: 900 }}
-                                                >
-                                                    {a.title}
-                                                </Typography>
-                                                <Typography
-                                                    variant="body2"
-                                                    sx={{
-                                                        color: "text.secondary",
-                                                    }}
-                                                    noWrap
-                                                >
-                                                    {a.description}
-                                                </Typography>
-                                            </TableCell>
+                        <Divider />
 
-                                            <TableCell
-                                                sx={{ whiteSpace: "nowrap" }}
-                                            >
-                                                <Chip
-                                                    size="small"
-                                                    label={
-                                                        a.expiration_date || "—"
-                                                    }
-                                                    sx={{
-                                                        borderRadius: 2,
-                                                        fontWeight: 900,
-                                                    }}
-                                                />
-                                            </TableCell>
-
-                                            <TableCell>
-                                                <StatusChip
-                                                    isActive={a.is_active}
-                                                />
-                                            </TableCell>
-
-                                            <TableCell
-                                                sx={{ whiteSpace: "nowrap" }}
-                                            >
-                                                {a.created_at
-                                                    ? new Date(
-                                                          a.created_at
-                                                      ).toLocaleDateString()
-                                                    : "—"}
-                                            </TableCell>
-
+                        {loading ? (
+                            <Box
+                                sx={{
+                                    p: 2,
+                                    display: "flex",
+                                    gap: 1.25,
+                                    alignItems: "center",
+                                }}
+                            >
+                                <CircularProgress size={18} />
+                                <Typography sx={{ fontWeight: 900 }}>
+                                    Loading…
+                                </Typography>
+                            </Box>
+                        ) : (
+                            <Box sx={{ width: "100%", overflowX: "auto" }}>
+                                <Table
+                                    size="small"
+                                    sx={{
+                                        minWidth: 980,
+                                        "& th": {
+                                            whiteSpace: "nowrap",
+                                            fontWeight: 900,
+                                        },
+                                    }}
+                                >
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Title</TableCell>
+                                            <TableCell>Expires</TableCell>
+                                            <TableCell>Status</TableCell>
+                                            <TableCell>Created</TableCell>
                                             <TableCell align="right">
-                                                <Button
-                                                    size="small"
-                                                    variant="contained"
-                                                    sx={{ borderRadius: 3 }}
-                                                    onClick={() => openEdit(a)}
-                                                >
-                                                    Edit
-                                                </Button>
+                                                Action
                                             </TableCell>
                                         </TableRow>
-                                    ))}
+                                    </TableHead>
 
-                                    {filtered.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell
-                                                colSpan={5}
-                                                sx={{ py: 6 }}
-                                            >
-                                                <Box
-                                                    sx={{ textAlign: "center" }}
+                                    <TableBody>
+                                        {filtered.map((a) => (
+                                            <TableRow key={a.id} hover>
+                                                <TableCell
+                                                    sx={{
+                                                        minWidth: 360,
+                                                        maxWidth: 520,
+                                                    }}
                                                 >
                                                     <Typography
                                                         sx={{ fontWeight: 900 }}
+                                                        noWrap
+                                                        title={a.title || ""}
                                                     >
-                                                        No announcements found
+                                                        {a.title || "—"}
                                                     </Typography>
                                                     <Typography
                                                         variant="body2"
                                                         sx={{
                                                             color: "text.secondary",
-                                                            mt: 0.5,
+                                                            overflow: "hidden",
+                                                            textOverflow:
+                                                                "ellipsis",
+                                                            whiteSpace:
+                                                                "nowrap",
+                                                        }}
+                                                        title={
+                                                            a.description || ""
+                                                        }
+                                                    >
+                                                        {a.description || "—"}
+                                                    </Typography>
+                                                </TableCell>
+
+                                                <TableCell
+                                                    sx={{
+                                                        whiteSpace: "nowrap",
+                                                    }}
+                                                >
+                                                    <DateChip
+                                                        value={
+                                                            a.expiration_date
+                                                        }
+                                                    />
+                                                </TableCell>
+
+                                                <TableCell>
+                                                    <StatusChip
+                                                        isActive={a.is_active}
+                                                    />
+                                                </TableCell>
+
+                                                <TableCell
+                                                    sx={{
+                                                        whiteSpace: "nowrap",
+                                                    }}
+                                                >
+                                                    {a.created_at
+                                                        ? new Date(
+                                                              a.created_at
+                                                          ).toLocaleDateString()
+                                                        : "—"}
+                                                </TableCell>
+
+                                                <TableCell align="right">
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        sx={{
+                                                            borderRadius: R.btn,
+                                                        }}
+                                                        onClick={() =>
+                                                            openEdit(a)
+                                                        }
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+
+                                        {filtered.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell
+                                                    colSpan={5}
+                                                    sx={{ py: 6 }}
+                                                >
+                                                    <Box
+                                                        sx={{
+                                                            textAlign: "center",
                                                         }}
                                                     >
-                                                        Try another search
-                                                        query.
-                                                    </Typography>
-                                                </Box>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : null}
-                                </TableBody>
-                            </Table>
-                        </Box>
-                    )}
-                </Paper>
+                                                        <Typography
+                                                            sx={{
+                                                                fontWeight: 900,
+                                                            }}
+                                                        >
+                                                            No announcements
+                                                            found
+                                                        </Typography>
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{
+                                                                color: "text.secondary",
+                                                                mt: 0.5,
+                                                            }}
+                                                        >
+                                                            Try another search
+                                                            query.
+                                                        </Typography>
+                                                    </Box>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : null}
+                                    </TableBody>
+                                </Table>
+                            </Box>
+                        )}
+                    </Paper>
 
-                <AdminEditDrawer
-                    open={open}
-                    onClose={() => setOpen(false)}
-                    title={
-                        editing?.id
-                            ? "Edit Announcement"
-                            : "Create Announcement"
-                    }
-                    value={editing || {}}
-                    onChange={setEditing}
-                    onSave={save}
-                    onDelete={del}
-                    showDelete={Boolean(editing?.id)}
-                    saving={saving} // if your drawer supports it; if not, harmless extra prop
-                    fields={[
-                        { key: "title", label: "Title", required: true },
-                        {
-                            key: "description",
-                            label: "Description",
-                            required: true,
-                            multiline: true,
-                            minRows: 4,
-                        },
-                        {
-                            key: "expirationDate",
-                            label: "Expiration date",
-                            required: true,
-                            type: "date",
-                        },
-                    ]}
-                />
+                    <AdminEditDrawer
+                        open={open}
+                        onClose={() => setOpen(false)}
+                        title={
+                            editing?.id
+                                ? "Edit Announcement"
+                                : "Create Announcement"
+                        }
+                        value={editing || {}}
+                        onChange={setEditing}
+                        onSave={save}
+                        onDelete={del}
+                        showDelete={Boolean(editing?.id)}
+                        saving={saving} // harmless if drawer ignores
+                        fields={[
+                            { key: "title", label: "Title", required: true },
+                            {
+                                key: "description",
+                                label: "Description",
+                                required: true,
+                                multiline: true,
+                                minRows: 4,
+                            },
+                            {
+                                key: "expirationDate",
+                                label: "Expiration date",
+                                required: true,
+                                type: "date",
+                            },
+                        ]}
+                    />
+                </Box>
             </AppShell>
         </RoleGuard>
     );

@@ -17,6 +17,15 @@ import CloseOutlinedIcon from "@mui/icons-material/CloseOutlined";
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 
+/** ✅ explicit px radii to avoid “weirdly round” */
+const R = {
+    drawer: 16, // <- was 24
+    card: 14, // <- was 4 (theme units) in multiple places
+    soft: 12, // <- for small surfaces
+    btn: 12, // <- was 3
+    chip: 999, // pill
+};
+
 export default function BookEditDrawer({
     open,
     onClose,
@@ -30,7 +39,6 @@ export default function BookEditDrawer({
     const [errors, setErrors] = React.useState({});
     const [localCoverUrl, setLocalCoverUrl] = React.useState("");
     const [localCoverName, setLocalCoverName] = React.useState("");
-
     const [authorInput, setAuthorInput] = React.useState("");
 
     React.useEffect(() => {
@@ -78,7 +86,6 @@ export default function BookEditDrawer({
         const name = String(nameRaw || "").trim();
         if (!name) return;
 
-        // prevent duplicates case-insensitively
         const exists = authors.some(
             (a) => String(a).toLowerCase() === name.toLowerCase()
         );
@@ -103,8 +110,13 @@ export default function BookEditDrawer({
             PaperProps={{
                 sx: {
                     width: { xs: "100%", sm: 560 },
-                    borderTopLeftRadius: { xs: 0, sm: 24 },
-                    borderBottomLeftRadius: { xs: 0, sm: 24 },
+                    maxWidth: "100vw",
+                    minWidth: 0,
+                    overflowX: "hidden",
+
+                    // ✅ less round, consistent
+                    borderTopLeftRadius: { xs: 0, sm: `${R.drawer}px` },
+                    borderBottomLeftRadius: { xs: 0, sm: `${R.drawer}px` },
                 },
             }}
         >
@@ -114,9 +126,11 @@ export default function BookEditDrawer({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    gap: 2,
+                    minWidth: 0,
                 }}
             >
-                <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                <Typography variant="h6" sx={{ fontWeight: 900 }} noWrap>
                     {value?.id ? "Edit Book" : "Create Book"}
                 </Typography>
                 <IconButton
@@ -130,30 +144,32 @@ export default function BookEditDrawer({
 
             <Divider />
 
-            <Box sx={{ p: 2.25, display: "grid", gap: 2 }}>
+            <Box sx={{ p: 2.25, display: "grid", gap: 2, minWidth: 0 }}>
                 {/* Cover */}
                 <Paper
                     variant="outlined"
                     sx={{
-                        borderRadius: 4,
+                        borderRadius: `${R.card}px`,
                         p: 2,
                         display: "grid",
-                        gridTemplateColumns: "140px 1fr",
+                        gridTemplateColumns: { xs: "1fr", sm: "140px 1fr" },
                         gap: 2,
                         alignItems: "center",
+                        minWidth: 0,
                     }}
                 >
                     <Box
                         sx={{
-                            width: 140,
-                            height: 180,
-                            borderRadius: 3,
+                            width: { xs: "100%", sm: 140 },
+                            height: { xs: 220, sm: 180 },
+                            borderRadius: `${R.soft}px`,
                             overflow: "hidden",
                             backgroundColor: "action.hover",
                             display: "grid",
                             placeItems: "center",
                             border: "1px solid",
                             borderColor: "divider",
+                            minWidth: 0,
                         }}
                     >
                         {coverSrc ? (
@@ -172,7 +188,7 @@ export default function BookEditDrawer({
                         )}
                     </Box>
 
-                    <Box>
+                    <Box sx={{ minWidth: 0 }}>
                         <Typography sx={{ fontWeight: 900 }}>
                             Cover image
                         </Typography>
@@ -190,6 +206,7 @@ export default function BookEditDrawer({
                                 color: "text.secondary",
                                 display: "block",
                                 mt: 1,
+                                wordBreak: "break-word",
                             }}
                         >
                             {localCoverName ||
@@ -209,7 +226,7 @@ export default function BookEditDrawer({
                                 component="label"
                                 variant="contained"
                                 startIcon={<CloudUploadOutlinedIcon />}
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: `${R.btn}px` }}
                                 disabled={saving}
                             >
                                 Upload cover
@@ -224,7 +241,7 @@ export default function BookEditDrawer({
                                         setLocalCoverUrl((prev) => {
                                             if (prev?.startsWith("blob:"))
                                                 URL.revokeObjectURL(prev);
-                                            return prev;
+                                            return "";
                                         });
 
                                         const url = URL.createObjectURL(file);
@@ -233,7 +250,7 @@ export default function BookEditDrawer({
 
                                         onChange?.({
                                             ...value,
-                                            coverFile: file, // parent uploads
+                                            coverFile: file,
                                         });
                                     }}
                                 />
@@ -241,7 +258,7 @@ export default function BookEditDrawer({
 
                             <Button
                                 variant="outlined"
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: `${R.btn}px` }}
                                 disabled={saving}
                                 onClick={() => {
                                     if (localCoverUrl?.startsWith("blob:"))
@@ -262,7 +279,7 @@ export default function BookEditDrawer({
                 </Paper>
 
                 {/* Fields */}
-                <Stack spacing={1.5}>
+                <Stack spacing={1.5} sx={{ minWidth: 0 }}>
                     <TextField
                         label="Title"
                         value={value?.title ?? ""}
@@ -279,8 +296,9 @@ export default function BookEditDrawer({
                     <Box
                         sx={{
                             display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
+                            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
                             gap: 1.5,
+                            minWidth: 0,
                         }}
                     >
                         <TextField
@@ -293,6 +311,7 @@ export default function BookEditDrawer({
                                 })
                             }
                             disabled={saving}
+                            fullWidth
                         />
                         <TextField
                             label="Publisher"
@@ -304,11 +323,12 @@ export default function BookEditDrawer({
                                 })
                             }
                             disabled={saving}
+                            fullWidth
                         />
                     </Box>
 
-                    {/* Authors (real table: authors + book_authors) */}
-                    <Box>
+                    {/* Authors */}
+                    <Box sx={{ minWidth: 0 }}>
                         <TextField
                             label="Authors"
                             value={authorInput}
@@ -350,7 +370,10 @@ export default function BookEditDrawer({
                                             ? undefined
                                             : () => removeAuthor(a)
                                     }
-                                    sx={{ fontWeight: 800 }}
+                                    sx={{
+                                        fontWeight: 800,
+                                        borderRadius: `${R.chip}px`,
+                                    }}
                                 />
                             ))}
                         </Box>
@@ -385,8 +408,9 @@ export default function BookEditDrawer({
                     <Box
                         sx={{
                             display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
+                            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
                             gap: 1.5,
+                            minWidth: 0,
                         }}
                     >
                         <TextField
@@ -398,6 +422,7 @@ export default function BookEditDrawer({
                             }
                             inputProps={{ min: 0, step: "0.01" }}
                             disabled={saving}
+                            fullWidth
                         />
                         <TextField
                             label="Publication year"
@@ -411,14 +436,16 @@ export default function BookEditDrawer({
                             }
                             inputProps={{ min: 0, step: "1" }}
                             disabled={saving}
+                            fullWidth
                         />
                     </Box>
 
                     <Box
                         sx={{
                             display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
+                            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
                             gap: 1.5,
+                            minWidth: 0,
                         }}
                     >
                         <TextField
@@ -433,6 +460,7 @@ export default function BookEditDrawer({
                             }
                             inputProps={{ min: 0, step: "1" }}
                             disabled={saving}
+                            fullWidth
                         />
                         <TextField
                             label="Stock available"
@@ -446,18 +474,24 @@ export default function BookEditDrawer({
                             }
                             inputProps={{ min: 0, step: "1" }}
                             disabled={saving}
+                            fullWidth
                         />
                     </Box>
                 </Stack>
 
                 <Box
-                    sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}
+                    sx={{
+                        display: "flex",
+                        gap: 1,
+                        justifyContent: "flex-end",
+                        flexWrap: "wrap",
+                    }}
                 >
                     {showDelete ? (
                         <Button
                             variant="outlined"
                             color="error"
-                            sx={{ borderRadius: 3 }}
+                            sx={{ borderRadius: `${R.btn}px` }}
                             onClick={onDelete}
                             disabled={saving}
                         >
@@ -467,7 +501,7 @@ export default function BookEditDrawer({
 
                     <Button
                         variant="outlined"
-                        sx={{ borderRadius: 3 }}
+                        sx={{ borderRadius: `${R.btn}px` }}
                         onClick={onClose}
                         disabled={saving}
                     >
@@ -476,7 +510,7 @@ export default function BookEditDrawer({
 
                     <Button
                         variant="contained"
-                        sx={{ borderRadius: 3 }}
+                        sx={{ borderRadius: `${R.btn}px` }}
                         onClick={handleSave}
                         disabled={saving}
                     >

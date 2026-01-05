@@ -20,6 +20,7 @@ import {
     Chip,
     Alert,
 } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
 import AppShell from "../../components/AppShell";
@@ -28,6 +29,14 @@ import BookCard from "../../components/BookCard";
 import RoleGuard from "../../components/RoleGuard";
 import { ROLES } from "../../lib/roles";
 import { useAuth } from "@/context/AuthContext";
+
+const R = {
+    xs: "10px",
+    sm: "12px",
+    md: "16px",
+    lg: "20px",
+    xl: "24px",
+};
 
 function withTimeout(promise, ms, label = "Request") {
     let t;
@@ -55,6 +64,8 @@ function adaptBookRow(b) {
 
 export default function BooksPage() {
     const { supabase, role } = useAuth();
+    const theme = useTheme();
+    const isDark = theme.palette.mode === "dark";
 
     const [tab, setTab] = React.useState(0);
     const [genre, setGenre] = React.useState("All");
@@ -66,19 +77,25 @@ export default function BooksPage() {
 
     const canManageBooks = role === "Administrator" || role === "Librarian";
 
+    const borderSoft = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.1 : 0.1
+    );
+    const hoverBg = alpha(
+        isDark ? "#FFFFFF" : "#0F1115",
+        isDark ? 0.04 : 0.035
+    );
+
     const load = React.useCallback(
         async ({ silent = false } = {}) => {
             if (!supabase) return;
 
             let cancelled = false;
-            // return a cancel fn (used by effect cleanup)
             const cancel = () => {
                 cancelled = true;
             };
 
-            if (!silent) {
-                setLoading(true);
-            }
+            if (!silent) setLoading(true);
             setError("");
 
             try {
@@ -132,7 +149,6 @@ export default function BooksPage() {
             cancel = await load({ silent: false });
         })();
 
-        // Re-fetch when tab becomes visible / focus returns (fixes “stuck after tab switch”)
         const onVisible = () => {
             if (document.visibilityState === "visible") load({ silent: true });
         };
@@ -182,6 +198,19 @@ export default function BooksPage() {
         [books]
     );
 
+    const surfaceCard = {
+        borderRadius: R.xl,
+        border: `1px solid ${borderSoft}`,
+        background: isDark
+            ? `linear-gradient(180deg, ${alpha("#FFFFFF", 0.05)} 0%, ${alpha(
+                  "#FFFFFF",
+                  0.02
+              )} 100%)`
+            : "#FFFFFF",
+        boxShadow: "none",
+        overflow: "hidden",
+    };
+
     return (
         <RoleGuard
             allowedRoles={[
@@ -200,7 +229,17 @@ export default function BooksPage() {
                             <Button
                                 variant="outlined"
                                 startIcon={<FilterAltOutlinedIcon />}
-                                sx={{ borderRadius: 3 }}
+                                sx={{
+                                    borderRadius: R.xl,
+                                    borderColor: borderSoft,
+                                    px: 2,
+                                    "&:hover": {
+                                        borderColor: alpha(
+                                            theme.palette.primary.main,
+                                            0.45
+                                        ),
+                                    },
+                                }}
                             >
                                 Filters
                             </Button>
@@ -208,7 +247,12 @@ export default function BooksPage() {
                             {canManageBooks ? (
                                 <Button
                                     variant="contained"
-                                    sx={{ borderRadius: 3 }}
+                                    sx={{
+                                        borderRadius: R.xl,
+                                        px: 2.2,
+                                        boxShadow: "none",
+                                        "&:hover": { boxShadow: "none" },
+                                    }}
                                 >
                                     + Add Book
                                 </Button>
@@ -218,33 +262,53 @@ export default function BooksPage() {
                 />
 
                 {error ? (
-                    <Alert severity="error" sx={{ mt: 2, borderRadius: 3 }}>
+                    <Alert severity="error" sx={{ mt: 2, borderRadius: R.lg }}>
                         {error}
                     </Alert>
                 ) : null}
 
+                {/* Filter Bar (matches ref: one capsule row) */}
                 <Paper
                     variant="outlined"
                     sx={{
-                        p: 1.25,
-                        borderRadius: 4,
-                        display: "flex",
-                        gap: 1,
-                        flexWrap: "wrap",
-                        alignItems: "center",
                         mt: error ? 2 : 0,
+                        p: 1,
+                        borderRadius: "999px",
+                        borderColor: borderSoft,
+                        background: isDark
+                            ? alpha("#0F1115", 0.35)
+                            : alpha("#FFFFFF", 0.65),
+                        backdropFilter: "blur(10px)",
+                        display: "grid",
+                        gridTemplateColumns: { xs: "1fr", md: "auto 1fr auto" },
+                        gap: 1,
+                        alignItems: "center",
                     }}
                 >
                     <Tabs
                         value={tab}
                         onChange={(_, v) => setTab(v)}
                         sx={{
-                            minHeight: 40,
+                            minHeight: 44,
+                            "& .MuiTabs-flexContainer": { gap: 6, px: 0.5 },
                             "& .MuiTab-root": {
-                                minHeight: 40,
-                                borderRadius: 3,
+                                minHeight: 44,
+                                px: 2,
+                                borderRadius: "999px",
                                 textTransform: "none",
                                 fontWeight: 800,
+                                color: "text.secondary",
+                            },
+                            "& .MuiTab-root.Mui-selected": {
+                                color: "primary.main",
+                                backgroundColor: alpha(
+                                    theme.palette.primary.main,
+                                    isDark ? 0.14 : 0.1
+                                ),
+                            },
+                            "& .MuiTabs-indicator": {
+                                height: 3,
+                                borderRadius: 999,
                             },
                         }}
                     >
@@ -253,13 +317,11 @@ export default function BooksPage() {
                         <Tab label="Latest" />
                     </Tabs>
 
-                    <Box sx={{ flex: 1 }} />
-
                     <TextField
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search title / author / ISBN…"
-                        sx={{ width: { xs: "100%", sm: 360 } }}
+                        fullWidth
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
@@ -267,14 +329,31 @@ export default function BooksPage() {
                                 </InputAdornment>
                             ),
                         }}
+                        sx={{
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: "999px",
+                                backgroundColor: alpha(
+                                    isDark ? "#FFFFFF" : "#0F1115",
+                                    isDark ? 0.04 : 0.03
+                                ),
+                            },
+                            "& .MuiOutlinedInput-notchedOutline": {
+                                borderColor: borderSoft,
+                            },
+                        }}
                     />
 
                     <TextField
                         select
                         value={genre}
                         onChange={(e) => setGenre(e.target.value)}
-                        sx={{ width: { xs: "100%", sm: 220 } }}
                         label="Genre"
+                        sx={{
+                            width: { xs: "100%", md: 220 },
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: "999px",
+                            },
+                        }}
                     >
                         {genres.map((g) => (
                             <MenuItem key={g} value={g}>
@@ -293,6 +372,7 @@ export default function BooksPage() {
                         alignItems: "start",
                     }}
                 >
+                    {/* Book Grid */}
                     <Box
                         sx={{
                             display: "grid",
@@ -310,17 +390,59 @@ export default function BooksPage() {
                                     <Paper
                                         key={`sk-${idx}`}
                                         variant="outlined"
-                                        sx={{ borderRadius: 4, height: 290 }}
+                                        sx={{
+                                            borderRadius: R.xl,
+                                            height: 290,
+                                            borderColor: borderSoft,
+                                            background: isDark
+                                                ? alpha("#FFFFFF", 0.03)
+                                                : alpha("#0F1115", 0.02),
+                                        }}
                                     />
                                 ) : (
-                                    <BookCard key={book.id} book={book} />
+                                    <Box
+                                        key={book.id}
+                                        sx={{
+                                            borderRadius: R.xl,
+                                            transition:
+                                                "transform 140ms ease, box-shadow 140ms ease",
+                                            "&:hover": {
+                                                transform: "translateY(-2px)",
+                                            },
+                                        }}
+                                    >
+                                        <BookCard book={book} />
+                                    </Box>
                                 )
                         )}
+
+                        {!loading && filtered.length === 0 ? (
+                            <Paper
+                                variant="outlined"
+                                sx={{
+                                    ...surfaceCard,
+                                    p: 2.25,
+                                    gridColumn: "1 / -1",
+                                }}
+                            >
+                                <Typography sx={{ fontWeight: 900 }}>
+                                    No results
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    sx={{ color: "text.secondary", mt: 0.5 }}
+                                >
+                                    Try a different search term or choose
+                                    another genre.
+                                </Typography>
+                            </Paper>
+                        ) : null}
                     </Box>
 
+                    {/* Right Rail */}
                     <Box sx={{ display: "grid", gap: 2 }}>
-                        <Card sx={{ borderRadius: 4 }}>
-                            <CardContent>
+                        <Card sx={surfaceCard}>
+                            <CardContent sx={{ p: 2.25 }}>
                                 <Typography sx={{ fontWeight: 900 }}>
                                     Stock Snapshot
                                 </Typography>
@@ -331,7 +453,9 @@ export default function BooksPage() {
                                     Quick overview of inventory health.
                                 </Typography>
 
-                                <Divider sx={{ my: 2 }} />
+                                <Divider
+                                    sx={{ my: 2, borderColor: borderSoft }}
+                                />
 
                                 <Box
                                     sx={{
@@ -342,7 +466,15 @@ export default function BooksPage() {
                                 >
                                     <Paper
                                         variant="outlined"
-                                        sx={{ p: 1.25, borderRadius: 3 }}
+                                        sx={{
+                                            p: 1.25,
+                                            borderRadius: R.lg,
+                                            borderColor: borderSoft,
+                                            background: alpha(
+                                                isDark ? "#FFFFFF" : "#0F1115",
+                                                isDark ? 0.03 : 0.02
+                                            ),
+                                        }}
                                     >
                                         <Typography
                                             variant="body2"
@@ -362,7 +494,15 @@ export default function BooksPage() {
 
                                     <Paper
                                         variant="outlined"
-                                        sx={{ p: 1.25, borderRadius: 3 }}
+                                        sx={{
+                                            p: 1.25,
+                                            borderRadius: R.lg,
+                                            borderColor: borderSoft,
+                                            background: alpha(
+                                                isDark ? "#FFFFFF" : "#0F1115",
+                                                isDark ? 0.03 : 0.02
+                                            ),
+                                        }}
                                     >
                                         <Typography
                                             variant="body2"
@@ -381,7 +521,9 @@ export default function BooksPage() {
                                     </Paper>
                                 </Box>
 
-                                <Divider sx={{ my: 2 }} />
+                                <Divider
+                                    sx={{ my: 2, borderColor: borderSoft }}
+                                />
 
                                 <Typography
                                     variant="body2"
@@ -391,37 +533,91 @@ export default function BooksPage() {
                                 </Typography>
 
                                 <List dense sx={{ p: 0 }}>
-                                    {lowStockAlerts.map((b) => (
-                                        <ListItem key={b.id} sx={{ px: 0 }}>
-                                            <ListItemText
-                                                primaryTypographyProps={{
-                                                    sx: { fontWeight: 800 },
-                                                }}
-                                                primary={b.title}
-                                                secondary={`Available: ${b.stockAvailable}/${b.stockTotal}`}
-                                            />
-                                            <Chip
-                                                size="small"
-                                                label={
-                                                    b.stockAvailable === 0
-                                                        ? "Out"
-                                                        : "Low"
-                                                }
+                                    {lowStockAlerts.map((b) => {
+                                        const isOut = b.stockAvailable === 0;
+                                        return (
+                                            <ListItem
+                                                key={b.id}
                                                 sx={{
-                                                    borderRadius: 2,
-                                                    fontWeight: 800,
-                                                    backgroundColor:
-                                                        b.stockAvailable === 0
-                                                            ? "rgba(231,76,60,0.15)"
-                                                            : "rgba(255,106,61,0.15)",
-                                                    color:
-                                                        b.stockAvailable === 0
-                                                            ? "#e74c3c"
-                                                            : "primary.main",
+                                                    px: 0,
+                                                    py: 0.75,
+                                                    borderRadius: R.lg,
+                                                    "&:hover": {
+                                                        backgroundColor:
+                                                            hoverBg,
+                                                    },
                                                 }}
-                                            />
-                                        </ListItem>
-                                    ))}
+                                                secondaryAction={
+                                                    <Chip
+                                                        size="small"
+                                                        label={
+                                                            isOut
+                                                                ? "Out"
+                                                                : "Low"
+                                                        }
+                                                        sx={{
+                                                            borderRadius:
+                                                                "999px",
+                                                            fontWeight: 800,
+                                                            backgroundColor:
+                                                                isOut
+                                                                    ? alpha(
+                                                                          theme
+                                                                              .palette
+                                                                              .error
+                                                                              .main,
+                                                                          isDark
+                                                                              ? 0.18
+                                                                              : 0.12
+                                                                      )
+                                                                    : alpha(
+                                                                          theme
+                                                                              .palette
+                                                                              .primary
+                                                                              .main,
+                                                                          isDark
+                                                                              ? 0.16
+                                                                              : 0.1
+                                                                      ),
+                                                            color: isOut
+                                                                ? theme.palette
+                                                                      .error
+                                                                      .main
+                                                                : "primary.main",
+                                                            border: `1px solid ${
+                                                                isOut
+                                                                    ? alpha(
+                                                                          theme
+                                                                              .palette
+                                                                              .error
+                                                                              .main,
+                                                                          0.3
+                                                                      )
+                                                                    : alpha(
+                                                                          theme
+                                                                              .palette
+                                                                              .primary
+                                                                              .main,
+                                                                          0.26
+                                                                      )
+                                                            }`,
+                                                        }}
+                                                    />
+                                                }
+                                            >
+                                                <ListItemText
+                                                    primaryTypographyProps={{
+                                                        sx: {
+                                                            fontWeight: 850,
+                                                            pr: 8,
+                                                        },
+                                                    }}
+                                                    primary={b.title}
+                                                    secondary={`Available: ${b.stockAvailable}/${b.stockTotal}`}
+                                                />
+                                            </ListItem>
+                                        );
+                                    })}
 
                                     {!loading && lowStockAlerts.length === 0 ? (
                                         <Box sx={{ py: 1 }}>
@@ -437,8 +633,8 @@ export default function BooksPage() {
                             </CardContent>
                         </Card>
 
-                        <Card sx={{ borderRadius: 4 }}>
-                            <CardContent>
+                        <Card sx={surfaceCard}>
+                            <CardContent sx={{ p: 2.25 }}>
                                 <Typography sx={{ fontWeight: 900 }}>
                                     Reservations
                                 </Typography>
@@ -448,7 +644,11 @@ export default function BooksPage() {
                                 >
                                     (UI placeholder — will connect later)
                                 </Typography>
-                                <Divider sx={{ my: 2 }} />
+
+                                <Divider
+                                    sx={{ my: 2, borderColor: borderSoft }}
+                                />
+
                                 <Box sx={{ display: "grid", gap: 1 }}>
                                     {[
                                         "The Coffee Shop Next Door",
@@ -458,10 +658,23 @@ export default function BooksPage() {
                                         <Paper
                                             key={t}
                                             variant="outlined"
-                                            sx={{ p: 1.25, borderRadius: 3 }}
+                                            sx={{
+                                                p: 1.25,
+                                                borderRadius: R.lg,
+                                                borderColor: borderSoft,
+                                                background: alpha(
+                                                    isDark
+                                                        ? "#FFFFFF"
+                                                        : "#0F1115",
+                                                    isDark ? 0.03 : 0.02
+                                                ),
+                                                "&:hover": {
+                                                    backgroundColor: hoverBg,
+                                                },
+                                            }}
                                         >
                                             <Typography
-                                                sx={{ fontWeight: 800 }}
+                                                sx={{ fontWeight: 850 }}
                                                 noWrap
                                             >
                                                 {t}

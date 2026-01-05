@@ -30,7 +30,21 @@ import RoleGuard from "../../components/RoleGuard";
 import { ROLES } from "../../lib/roles";
 import { useAuth } from "@/context/AuthContext";
 
-/** ---------- formatting helpers (replaces mock helpers) ---------- */
+/**
+ * FIX: stop “weirdly round” UI.
+ * MUI numeric borderRadius uses theme spacing (e.g. 4 => 16px).
+ * Use explicit px strings instead.
+ */
+const R = {
+    paper: "10px",
+    field: "10px",
+    tab: "10px",
+    btn: "10px",
+    chip: "10px",
+    pill: "999px",
+};
+
+/** ---------- formatting helpers ---------- */
 function formatMoney(amount) {
     const n = Number(amount || 0);
     try {
@@ -65,7 +79,7 @@ function StatusChip({ status }) {
             size="small"
             label={status}
             sx={{
-                borderRadius: 2,
+                borderRadius: R.chip,
                 fontWeight: 900,
                 backgroundColor: s.bg,
                 color: s.fg,
@@ -77,13 +91,11 @@ function StatusChip({ status }) {
 /** ---------- data helpers ---------- */
 async function signedReceiptUrl(supabase, receiptPath) {
     if (!receiptPath) return "";
-    // 60 minutes signed URL (change if you want)
     const { data, error } = await supabase.storage
         .from("receipts")
         .createSignedUrl(receiptPath, 60 * 60);
 
     if (error) {
-        // don’t hard-fail the page just because preview URL failed
         console.warn("createSignedUrl failed:", error.message);
         return "";
     }
@@ -119,9 +131,6 @@ export default function PaymentsPage() {
         setError("");
 
         try {
-            // 1) Receipts + payer/reviewer profile info
-            // NOTE: There are 2 FKs to profiles (payer_id + reviewed_by),
-            // so we alias them in select.
             const { data: receipts, error: rErr } = await supabase
                 .from("payment_receipts")
                 .select(
@@ -152,7 +161,6 @@ export default function PaymentsPage() {
 
             const list = receipts || [];
 
-            // 2) Resolve entity refs (Fine/Subscription) with separate queries (no FK on entity_id)
             const fineIds = list
                 .filter((x) => x.entity_type === "Fine")
                 .map((x) => x.entity_id)
@@ -188,8 +196,6 @@ export default function PaymentsPage() {
                 })(),
             ]);
 
-            // 3) Create signed URLs (only when needed by drawer)
-            // We’ll compute lazily on open too, but doing it here keeps it simple.
             const withUrls = await Promise.all(
                 list.map(async (r) => {
                     const receiptUrl = await signedReceiptUrl(
@@ -197,7 +203,6 @@ export default function PaymentsPage() {
                         r.receipt_path
                     );
 
-                    // entityRef shown in table
                     let entityRef = r.entity_id;
                     if (r.entity_type === "Fine") {
                         const f = fineMap.get(r.entity_id);
@@ -214,7 +219,6 @@ export default function PaymentsPage() {
                             : `Sub • ${String(r.entity_id).slice(0, 8)}…`;
                     }
 
-                    // map to what your UI expects (based on mock fields)
                     return {
                         id: r.id,
                         entityType: r.entity_type,
@@ -222,7 +226,7 @@ export default function PaymentsPage() {
                         entityRef,
 
                         amount: r.amount,
-                        method: "Receipt", // your schema doesn’t store method; add later if needed
+                        method: "Receipt",
                         status: r.status,
 
                         submittedAt: r.submitted_at,
@@ -233,7 +237,7 @@ export default function PaymentsPage() {
 
                         receiptPath: r.receipt_path,
                         receiptFileName: fileNameFromPath(r.receipt_path),
-                        receiptUrl, // <--- drawer can use this
+                        receiptUrl,
 
                         reviewedAt: r.reviewed_at,
                         reviewedBy:
@@ -280,7 +284,6 @@ export default function PaymentsPage() {
     }, [rows, entityType, status, q]);
 
     const handleReview = async (payment) => {
-        // If the receiptUrl wasn’t generated (or expired), refresh it on open.
         if (payment && payment.receiptPath && !payment.receiptUrl) {
             const url = await signedReceiptUrl(supabase, payment.receiptPath);
             payment = { ...payment, receiptUrl: url };
@@ -289,7 +292,6 @@ export default function PaymentsPage() {
         setOpen(true);
     };
 
-    // Real approve/reject: update payment_receipts status (triggers handle apply)
     const handleApprove = async (id, note) => {
         const { error: uErr } = await supabase
             .from("payment_receipts")
@@ -321,13 +323,13 @@ export default function PaymentsPage() {
                             <Button
                                 variant="outlined"
                                 startIcon={<TuneOutlinedIcon />}
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: R.btn }}
                             >
                                 Filters
                             </Button>
                             <Button
                                 variant="contained"
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: R.btn }}
                             >
                                 Export
                             </Button>
@@ -338,7 +340,7 @@ export default function PaymentsPage() {
                 {error ? (
                     <Paper
                         variant="outlined"
-                        sx={{ borderRadius: 4, p: 2, mb: 2 }}
+                        sx={{ borderRadius: R.paper, p: 2, mb: 2 }}
                     >
                         <Typography
                             sx={{ fontWeight: 900, color: "error.main" }}
@@ -352,11 +354,12 @@ export default function PaymentsPage() {
                     variant="outlined"
                     sx={{
                         p: 1.25,
-                        borderRadius: 4,
+                        borderRadius: R.paper,
                         display: "flex",
                         gap: 1,
                         flexWrap: "wrap",
                         alignItems: "center",
+                        minWidth: 0,
                     }}
                 >
                     <Tabs
@@ -364,11 +367,13 @@ export default function PaymentsPage() {
                         onChange={(_, v) => setTab(v)}
                         sx={{
                             minHeight: 40,
+                            "& .MuiTabs-flexContainer": { gap: 0.75 },
                             "& .MuiTab-root": {
                                 minHeight: 40,
-                                borderRadius: 3,
+                                borderRadius: R.tab,
                                 textTransform: "none",
                                 fontWeight: 900,
+                                px: 1.5,
                             },
                         }}
                     >
@@ -376,13 +381,18 @@ export default function PaymentsPage() {
                         <Tab label="Subscription Payments" />
                     </Tabs>
 
-                    <Box sx={{ flex: 1 }} />
+                    <Box sx={{ flex: 1, minWidth: 0 }} />
 
                     <TextField
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
                         placeholder="Search payer / username / entity…"
-                        sx={{ width: { xs: "100%", sm: 360 } }}
+                        sx={{
+                            width: { xs: "100%", sm: 360 },
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: R.field,
+                            },
+                        }}
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
@@ -396,7 +406,12 @@ export default function PaymentsPage() {
                         select
                         value={status}
                         onChange={(e) => setStatus(e.target.value)}
-                        sx={{ width: { xs: "100%", sm: 220 } }}
+                        sx={{
+                            width: { xs: "100%", sm: 220 },
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: R.field,
+                            },
+                        }}
                         label="Status"
                     >
                         {[
@@ -415,7 +430,7 @@ export default function PaymentsPage() {
 
                 <Paper
                     variant="outlined"
-                    sx={{ mt: 2, borderRadius: 4, overflow: "hidden" }}
+                    sx={{ mt: 2, borderRadius: R.paper, overflow: "hidden" }}
                 >
                     <Box
                         sx={{
@@ -423,6 +438,8 @@ export default function PaymentsPage() {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
+                            gap: 2,
+                            minWidth: 0,
                         }}
                     >
                         <Typography sx={{ fontWeight: 900 }}>
@@ -435,10 +452,18 @@ export default function PaymentsPage() {
                             Showing: <b>{status}</b>
                         </Typography>
                     </Box>
+
                     <Divider />
 
                     <Box sx={{ overflowX: "auto" }}>
-                        <Table size="small" sx={{ minWidth: 860 }}>
+                        <Table
+                            size="small"
+                            sx={{
+                                minWidth: 860,
+                                "& th": { fontWeight: 900 },
+                                "& td": { verticalAlign: "middle" },
+                            }}
+                        >
                             <TableHead>
                                 <TableRow>
                                     <TableCell>Submitted</TableCell>
@@ -486,6 +511,7 @@ export default function PaymentsPage() {
                                                         r.submittedAt
                                                     )}
                                                 </TableCell>
+
                                                 <TableCell>
                                                     <Typography
                                                         sx={{
@@ -504,6 +530,7 @@ export default function PaymentsPage() {
                                                         @{r.payerUsername}
                                                     </Typography>
                                                 </TableCell>
+
                                                 <TableCell>
                                                     <Typography
                                                         sx={{
@@ -522,6 +549,7 @@ export default function PaymentsPage() {
                                                         {r.entityType}
                                                     </Typography>
                                                 </TableCell>
+
                                                 <TableCell>
                                                     <Typography
                                                         sx={{ fontWeight: 900 }}
@@ -537,17 +565,22 @@ export default function PaymentsPage() {
                                                         {r.method}
                                                     </Typography>
                                                 </TableCell>
+
                                                 <TableCell>
                                                     <StatusChip
                                                         status={r.status}
                                                     />
                                                 </TableCell>
+
                                                 <TableCell align="right">
                                                     <IconButton
                                                         onClick={() =>
                                                             handleReview(r)
                                                         }
                                                         aria-label="review"
+                                                        sx={{
+                                                            borderRadius: R.btn,
+                                                        }}
                                                     >
                                                         <VisibilityOutlinedIcon />
                                                     </IconButton>
@@ -601,6 +634,7 @@ export default function PaymentsPage() {
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
+                            gap: 2,
                         }}
                     >
                         <Typography
@@ -612,14 +646,14 @@ export default function PaymentsPage() {
                         <Box sx={{ display: "flex", gap: 1 }}>
                             <Button
                                 variant="outlined"
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: R.btn }}
                                 disabled
                             >
                                 Prev
                             </Button>
                             <Button
                                 variant="outlined"
-                                sx={{ borderRadius: 3 }}
+                                sx={{ borderRadius: R.btn }}
                                 disabled
                             >
                                 Next
